@@ -1,13 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --background: #271d17;
-  --foreground: #efe4d2;
-  --muted: #b9a384;
-  --border: #efe4d2;
-  --accent: #9db0ff;
-  --accent-deep: #1d3593;
-  --card: #33261e;
+  /* Perk-style palette: electric lime on warm parchment */
+  --background: #ffffff;
+  --foreground: #14140f;
+  --muted: #6e6e64;
+  --border: #14140f;
+  --accent: #beff50;
+  --accent-deep: #14140f;
+  --card: #f5f5eb;
+  --ash: #d2d2c8;
+  --charcoal: #30302a;
+  --surface: #ffffff;
+}
+
+[data-theme="dark"] {
+  --background: #14140f;
+  --foreground: #f5f5eb;
+  --muted: #a3a397;
+  --border: #f5f5eb;
+  --accent: #beff50;
+  --accent-deep: #14140f;
+  --card: #1e1e19;
+  --ash: #3a3a33;
+  --charcoal: #30302a;
+  --surface: #26261f;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -18,18 +36,24 @@
   --color-accent: var(--accent);
   --color-accent-deep: var(--accent-deep);
   --color-card: var(--card);
-  --font-heading: var(--font-instrument-serif);
-  --font-sans: var(--font-jakarta);
+  --color-surface: var(--surface);
+  --color-ash: var(--ash);
+  --color-deep-charcoal: var(--charcoal);
+  --color-off-white: var(--card);
+  --font-heading: "Geist", sans-serif;
+  --font-sans: "Geist", sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-jakarta), sans-serif;
+  font-family: "Geist", sans-serif;
 }
 
 h1, h2, h3, .font-heading {
-  font-family: var(--font-instrument-serif), serif;
+  font-family: "Geist", sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.03em;
 }
 
 ::selection {
@@ -38,11 +62,22 @@ h1, h2, h3, .font-heading {
 }
 
 input, textarea, select {
-  color: var(--background);
+  color: var(--foreground);
+  border-color: var(--ash) !important;
+  border-radius: 8px !important;
 }
 
+::selection {
+  color: #14140f;
+}
+
+/* No visible scrollbars anywhere; content still scrolls. */
 * {
-  scrollbar-color: var(--muted) transparent;
+  scrollbar-width: none;
+}
+*
+::-webkit-scrollbar {
+  display: none;
 }
 
 a, button {
@@ -50,19 +85,116 @@ a, button {
 }
 
 input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--foreground);
   outline-offset: 2px;
 }
 
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* ---------- Motion ---------- */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
 }
-::-webkit-scrollbar-thumb {
-  background: var(--muted);
-  border-radius: 999px;
-  opacity: 0.5;
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(190, 255, 80, 0.7); }
+  70% { box-shadow: 0 0 0 8px rgba(190, 255, 80, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(190, 255, 80, 0); }
+}
+@keyframes ring {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(14deg); }
+  40% { transform: rotate(-10deg); }
+  60% { transform: rotate(6deg); }
+  80% { transform: rotate(-3deg); }
+}
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-18px, 14px) scale(1.08); }
+}
+
+/* Page sections rise in one after another. */
+.page-enter > * > * {
+  animation: fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.page-enter > * > *:nth-child(1) { animation-delay: 0ms; }
+.page-enter > * > *:nth-child(2) { animation-delay: 70ms; }
+.page-enter > * > *:nth-child(3) { animation-delay: 140ms; }
+.page-enter > * > *:nth-child(4) { animation-delay: 210ms; }
+.page-enter > * > *:nth-child(5) { animation-delay: 280ms; }
+.page-enter > * > *:nth-child(n + 6) { animation-delay: 340ms; }
+
+/* Cards inside grids stagger too. */
+.stagger > * {
+  animation: fade-up 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(2) { animation-delay: 60ms; }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(n + 5) { animation-delay: 240ms; }
+
+.animate-pop {
+  animation: pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top right;
+}
+.bar-grow {
+  transform-origin: left;
+  animation: grow-x 900ms cubic-bezier(0.22, 1, 0.36, 1) 300ms both;
+}
+.pulse-dot { animation: pulse-dot 2s ease-out infinite; }
+.bell:hover svg { animation: ring 600ms ease; transform-origin: 50% 10%; }
+.drift { animation: drift 9s ease-in-out infinite; }
+
+.lift {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), background-color 200ms ease, color 200ms ease;
+}
+.lift:hover { transform: translateY(-4px); }
+.lift:active { transform: translateY(-1px) scale(0.99); }
+
+.lift .arrow { transition: transform 220ms ease; }
+.lift:hover .arrow { transform: translateX(4px); }
+
+button:active:not(:disabled), a.rounded-full:active { transform: scale(0.97); }
+
+details > *:not(summary) { animation: fade-up 280ms ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ---------- Grainy lime ---------- */
+/* Lime surfaces get a soft multi-tone gradient plus a noise layer, like a
+   risograph print. Applies to every lime fill (buttons, active nav, cards,
+   badges) including hover states. Base colour stays --accent for contrast. */
+:root {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --lime-flow:
+    radial-gradient(120% 140% at 0% 0%, #e4ff7a 0%, transparent 55%),
+    radial-gradient(110% 130% at 100% 100%, #8fe35a 0%, transparent 60%),
+    radial-gradient(80% 90% at 85% 10%, #f2f56a 0%, transparent 55%);
+}
+
+.bg-accent,
+.hover\:bg-accent:hover {
+  background-image: var(--grain), var(--lime-flow);
+  background-size: 160px 160px, 100% 100%, 100% 100%, 100% 100%;
+  background-blend-mode: overlay, normal, normal, normal;
+}
+
+/* Tour spotlight: a hole in a dark veil, outlined in lime. */
+.tour-spot {
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 9999px rgba(10, 10, 8, 0.55);
+  transition: left 300ms cubic-bezier(0.22, 1, 0.36, 1), top 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 300ms cubic-bezier(0.22, 1, 0.36, 1), height 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }

@@ -1,121 +1,171 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logoutAction } from "@/lib/auth-actions";
 import Logo from "./Logo";
+import { Icon, type IconName } from "./Icons";
+import { NAV_GROUPS, HIDDEN_CHROME, isItemActive } from "./nav-config";
 
-const SECTIONS = [
-  { href: "/", label: "Dashboard", num: "00" },
-  { href: "/brand", label: "Brand Foundation", num: "01" },
-  { href: "/calendar", label: "Calendar & Batching", num: "02" },
-  { href: "/research", label: "Outlier Research", num: "03" },
-  { href: "/hooks", label: "Hook Lab", num: "04" },
-  { href: "/scripts", label: "Script Studio", num: "05" },
-  { href: "/production", label: "Production Planner", num: "06" },
-  { href: "/funnel", label: "CTA & Funnel Mapper", num: "07" },
-  { href: "/prompts", label: "Master Prompt Library", num: "08" },
-  { href: "/analytics", label: "Analytics & Levels", num: "09" },
-  { href: "/library", label: "Script Library", num: "10" },
-  { href: "/improve", label: "Script Improver", num: "11" },
-  { href: "/carousels", label: "Carousel Studio", num: "12" },
-  { href: "/carousel-library", label: "Carousel Library", num: "13" },
-  { href: "/settings", label: "Settings", num: "14" },
+const FOOTER_LINKS: { href: string; label: string; icon: IconName }[] = [
+  { href: "#refer", label: "Refer & Earn", icon: "gift" },
+  { href: "#guide", label: "Guide", icon: "map" },
+  { href: "#feedback", label: "Feedback", icon: "message" },
 ];
 
-function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavLinks({ pathname, collapsed, onNavigate }: { pathname: string; collapsed?: boolean; onNavigate?: () => void }) {
   return (
-    <>
-      {SECTIONS.map((s) => {
-        const active = pathname === s.href;
-        return (
-          <Link
-            key={s.href}
-            href={s.href}
-            onClick={onNavigate}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-              active
-                ? "bg-accent text-accent-deep font-medium"
-                : "text-foreground/80 hover:bg-foreground/10 hover:text-foreground"
-            }`}
-          >
-            <span className="text-[10px] text-muted tabular-nums">{s.num}</span>
-            {s.label}
-          </Link>
-        );
-      })}
-    </>
+    <div className="flex flex-col gap-5">
+      {NAV_GROUPS.map((g) => (
+        <div key={g.title}>
+          {collapsed ? (
+            <div className="mx-auto mb-2 h-px w-6 bg-border/10" />
+          ) : (
+            <div className="px-3 mb-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-muted">{g.title}</div>
+          )}
+          <div className="flex flex-col gap-0.5">
+            {g.items.map((s) => {
+              const active = isItemActive(s, pathname);
+              return (
+                <Link
+                  key={s.href}
+                  href={s.href}
+                  onClick={onNavigate}
+                  title={collapsed ? s.label : undefined}
+                  className={`flex items-center gap-3 rounded-full py-2 text-sm transition-all duration-200 ${
+                    collapsed ? "justify-center px-0" : "px-3 hover:translate-x-0.5"
+                  } ${active ? "bg-accent text-accent-deep font-medium" : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"}`}
+                >
+                  <Icon name={s.icon} size={16} />
+                  {!collapsed && s.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
-export default function Nav() {
+function Footer({ collapsed }: { collapsed?: boolean }) {
+  return (
+    <div className="mt-6 pt-4 border-t border-border/10 flex flex-col gap-0.5">
+      <a
+        href="#upgrade"
+        title={collapsed ? "Upgrade" : undefined}
+        className={`mb-2 flex items-center gap-3 rounded-full bg-surface py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-deep ${collapsed ? "justify-center" : "px-3"}`}
+      >
+        <Icon name="dollar" size={16} />
+        {!collapsed && "Upgrade to Pro"}
+      </a>
+      {FOOTER_LINKS.map((l) => (
+        <a
+          key={l.label}
+          href={l.href}
+          title={collapsed ? l.label : undefined}
+          className={`flex items-center gap-3 rounded-full py-2 text-sm text-foreground/75 hover:bg-foreground/5 hover:text-foreground ${collapsed ? "justify-center" : "px-3"}`}
+        >
+          <Icon name={l.icon} size={16} />
+          {!collapsed && l.label}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// Single-workspace brand display -- the app has no multi-brand/multi-tenant
+// workspace model (one signed-in user = one brand), so this shows the
+// current brand instead of the fork's mock brand switcher.
+function BrandDisplay({ name, handle }: { name: string; handle: string }) {
+  const initials = (name || "U").slice(0, 2).toUpperCase();
+  return (
+    <div className="mb-6" data-tour="brand-switcher">
+      <Link href="/brand" className="flex w-full items-center gap-3 rounded-[18px] bg-surface p-2.5 text-left hover:bg-foreground/5">
+        <span className="grid place-items-center h-8 w-8 rounded-lg bg-deep-charcoal text-off-white text-xs font-medium">{initials}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium truncate">{name || "Your brand"}</span>
+          <span className="block text-xs text-muted truncate">{handle ? `@${handle}` : "Set up your brand"}</span>
+        </span>
+      </Link>
+    </div>
+  );
+}
+
+export default function Nav({ brandName = "", brandHandle = "" }: { brandName?: string; brandHandle?: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
-  if (pathname === "/login" || pathname === "/signup" || pathname === "/onboarding") return null;
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        setCollapsed(localStorage.getItem("upcreate_sidebar") === "collapsed");
+      } catch {}
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  function toggle() {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      localStorage.setItem("upcreate_sidebar", next ? "collapsed" : "open");
+    } catch {}
+  }
+
+  if (HIDDEN_CHROME.includes(pathname)) return null;
 
   return (
     <>
-      {/* Mobile top bar */}
-      <div className="md:hidden sticky top-0 z-40 flex items-center justify-between border-b border-border/15 bg-background/95 backdrop-blur px-4 py-3">
-        <Link href="/" className="flex items-center gap-2 font-heading text-xl leading-none">
-          <Logo size={22} />
-          Upcreate
-        </Link>
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="Open menu"
-          className="rounded-lg border border-border/20 p-2 text-foreground"
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-            <line x1="1" y1="4" x2="17" y2="4" />
-            <line x1="1" y1="9" x2="17" y2="9" />
-            <line x1="1" y1="14" x2="17" y2="14" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Mobile drawer */}
       {open && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/60" onClick={() => setOpen(false)}>
-          <div
-            className="absolute right-0 top-0 h-full w-72 max-w-[85vw] bg-card border-l border-border/20 px-5 py-6 flex flex-col gap-1 overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2.5">
-                <Logo size={26} />
-                <div>
-                  <div className="font-heading text-2xl leading-none">Upcreate</div>
-                  <div className="text-xs text-muted mt-1">content os</div>
-                </div>
-              </div>
-              <button onClick={() => setOpen(false)} aria-label="Close menu" className="text-muted text-2xl leading-none px-2">
-                ×
+        <div className="md:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setOpen(false)}>
+          <div className="animate-pop absolute left-0 top-0 h-full w-72 max-w-[85vw] bg-card px-4 py-6 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-8 px-2">
+              <Logo size={32} />
+              <button onClick={() => setOpen(false)} aria-label="Close menu" className="text-muted">
+                <Icon name="close" size={20} />
               </button>
             </div>
             <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
-            <form action={logoutAction} className="mt-auto pt-4">
-              <button className="text-xs text-muted hover:text-foreground px-3">Log out</button>
-            </form>
+            <Footer />
           </div>
         </div>
       )}
 
-      {/* Desktop sidebar */}
-      <nav className="w-64 shrink-0 border-r border-border/20 bg-card/40 px-5 py-8 hidden md:flex md:flex-col gap-1 sticky top-0 h-screen overflow-y-auto">
-        <div className="mb-8 px-1 flex items-center gap-3">
-          <Logo size={32} />
-          <div>
-            <div className="font-heading text-3xl leading-none">Upcreate</div>
-            <div className="text-xs text-muted mt-1">content os</div>
-          </div>
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="Open menu"
+        className="md:hidden fixed left-4 top-[3.4rem] z-40 rounded-full p-2 text-foreground hover:bg-foreground/5"
+      >
+        <Icon name="menu" size={20} />
+      </button>
+
+      <nav
+        className={`hidden md:flex shrink-0 flex-col bg-card py-5 sticky top-0 h-screen overflow-y-auto transition-[width] duration-300 ${
+          collapsed ? "w-[76px] px-3" : "w-64 px-3"
+        }`}
+      >
+        <div className={`flex items-center mb-6 ${collapsed ? "flex-col gap-3" : "justify-between pl-2"}`}>
+          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
+            {collapsed ? (
+              <span className="grid place-items-center h-9 w-9 rounded-xl bg-accent text-accent-deep font-medium">U</span>
+            ) : (
+              <Logo size={34} />
+            )}
+          </Link>
+          <button onClick={toggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="rounded-lg p-1.5 text-muted hover:bg-foreground/5 hover:text-foreground">
+            <Icon name="sidebar" size={18} className={collapsed ? "rotate-180" : ""} />
+          </button>
         </div>
-        <NavLinks pathname={pathname} />
-        <form action={logoutAction} className="mt-auto pt-4">
-          <button className="text-xs text-muted hover:text-foreground px-3">Log out</button>
-        </form>
+
+        {!collapsed && <BrandDisplay name={brandName} handle={brandHandle} />}
+
+        <div data-tour="sidebar">
+          <NavLinks pathname={pathname} collapsed={collapsed} />
+        </div>
+        <div className="flex-1" />
+        <Footer collapsed={collapsed} />
       </nav>
     </>
   );

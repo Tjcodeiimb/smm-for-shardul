@@ -69,7 +69,7 @@ export async function loginAction(_prev: { error?: string } | null, formData: Fo
   }
 
   await setSessionCookie(user.id);
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function logoutAction() {

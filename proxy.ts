@@ -5,7 +5,9 @@ import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/login" || pathname === "/signup") return NextResponse.next();
+  if (pathname === "/" || pathname === "/login" || pathname === "/signup" || pathname === "/forgot-password") {
+    return NextResponse.next();
+  }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (verifySessionToken(token) === null) {

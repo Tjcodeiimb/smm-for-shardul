@@ -32,11 +32,11 @@ export async function completeOnboardingAction(formData: FormData) {
   };
 
   await updateBrand(userId, { ...partial, onboardingComplete: true });
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function skipOnboardingAction() {
   const userId = await requireUserId();
   await updateBrand(userId, { onboardingComplete: true });
-  redirect("/");
+  redirect("/dashboard");
 }
