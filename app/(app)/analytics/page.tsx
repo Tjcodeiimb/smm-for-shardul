@@ -2,7 +2,7 @@ import { sql } from "@/lib/db";
 import { getBrand } from "@/lib/brand";
 import { requireUserId } from "@/lib/auth";
 import { createOwnPost, deleteOwnPost } from "@/lib/actions";
-import { Card, SectionHeader, Badge, DeleteForm } from "@/app/components/ui";
+import { Card, SectionHeader, Badge, DeleteForm, Stat } from "@/app/components/ui";
 import DoubleDownClient from "./DoubleDownClient";
 
 type Post = {
@@ -31,11 +31,19 @@ export default async function AnalyticsPage() {
   const top5 = [...withMultiple].sort((a, b) => b.views - a.views).slice(0, 5);
   const bottom5 = [...withMultiple].sort((a, b) => a.views - b.views).slice(0, 5);
 
-  const inputClass = "w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-2.5";
+  const inputClass = "w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-2.5";
+  const totalViews = posts.reduce((t, p) => t + p.views, 0);
+  const viewsPerPost = posts.length ? Math.round(totalViews / posts.length) : 0;
 
   return (
     <div>
       <SectionHeader num="09" title="Analytics & Level Tracker" description="Track what actually worked, and double down on it deliberately." />
+
+      <div className="stagger grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <Stat label="Posts logged" value={posts.length.toLocaleString()} />
+        <Stat label="Total views" value={totalViews.toLocaleString()} />
+        <Stat label="Views / post" value={viewsPerPost.toLocaleString()} />
+      </div>
 
       <Card className="mb-8">
         <h3 className="font-heading text-xl mb-4">Log a posted video</h3>
@@ -55,7 +63,7 @@ export default async function AnalyticsPage() {
         </form>
       </Card>
 
-      <div className="grid md:grid-cols-2 gap-4 mb-8">
+      <div className="stagger grid md:grid-cols-2 gap-4 mb-8">
         <Card>
           <h3 className="font-heading text-xl mb-3">Top 5 by views</h3>
           {top5.length === 0 ? (

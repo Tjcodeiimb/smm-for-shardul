@@ -6,6 +6,7 @@ import { FIVE_X_OUTLIER_RULE, SCRIPT_ANGLES } from "@/lib/reference";
 import { createOutlier, toggleOutlierUsed, deleteOutlier } from "@/lib/actions";
 import { Card, SectionHeader, Badge, DeleteForm } from "@/app/components/ui";
 import PromptRunner from "@/app/components/PromptRunner";
+import OutlierDiscovery from "@/app/components/OutlierDiscovery";
 import CsvImportClient from "./CsvImportClient";
 
 type Outlier = {
@@ -34,7 +35,7 @@ export default async function ResearchPage() {
   ]);
   const keywordPrompt = buildKeywordBankPrompt(brand);
 
-  const inputClass = "w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-2.5";
+  const inputClass = "w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-2.5";
   const selectClass = inputClass;
 
   return (
@@ -45,7 +46,9 @@ export default async function ResearchPage() {
         description="Never guess. Every hook and script should trace back to a proven 5x outlier."
       />
 
-      <div className="grid md:grid-cols-2 gap-4 mb-8">
+      <OutlierDiscovery />
+
+      <div className="stagger grid md:grid-cols-2 gap-4 mb-8">
         <Card>
           <h3 className="font-heading text-xl mb-2">The 5x outlier rule</h3>
           <p className="text-sm text-muted">{FIVE_X_OUTLIER_RULE}</p>
@@ -148,7 +151,7 @@ export default async function ResearchPage() {
                     <div className="text-sm">
                       <span className="font-medium">{r.creator_handle || r.niche_keyword || "(untitled)"}</span>
                       {r.link && (
-                        <a href={r.link} target="_blank" className="text-accent text-xs ml-2">
+                        <a href={r.link} target="_blank" className="text-foreground font-medium text-xs ml-2">
                           link
                         </a>
                       )}

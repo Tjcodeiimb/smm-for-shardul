@@ -3,8 +3,10 @@ import { getBrand } from "@/lib/brand";
 import { requireUserId } from "@/lib/auth";
 import { SCRIPT_ANGLES, UNIVERSAL_HOOK_TEMPLATES } from "@/lib/reference";
 import { createHookStack, deleteHookStack } from "@/lib/actions";
-import { Card, SectionHeader, Badge, DeleteForm } from "@/app/components/ui";
+import { Card, SectionHeader, Badge, DeleteForm, PageSection } from "@/app/components/ui";
 import HookGenerator from "./HookGenerator";
+import ReelCard from "@/app/components/ReelCard";
+import { HOOK_ANGLE_EXAMPLES } from "@/lib/mock-data";
 
 type HookStack = {
   id: number;
@@ -23,7 +25,7 @@ export default async function HooksPage() {
     getBrand(userId),
     sql<HookStack[]>`SELECT * FROM hook_stacks WHERE user_id = ${userId} ORDER BY created_at DESC`,
   ]);
-  const inputClass = "w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-2.5";
+  const inputClass = "w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-2.5";
   const selectClass = inputClass;
 
   return (
@@ -101,7 +103,24 @@ export default async function HooksPage() {
         )}
       </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <PageSection title="Hook angles on screen" description="One example reel per angle, showing how the hook reads in the first second.">
+        <div className="stagger flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
+          {SCRIPT_ANGLES.map((a) => {
+            const ex = HOOK_ANGLE_EXAMPLES[a.name];
+            if (!ex) return null;
+            return (
+              <ReelCard
+                key={a.id}
+                size="sm"
+                reel={{ handle: "@example", hook: ex.hook, views: "Example", hue: ex.hue, style: ex.style, label: a.name.split(" /")[0] }}
+                footer={<div className="mt-2 px-1 text-xs font-medium">{a.name}</div>}
+              />
+            );
+          })}
+        </div>
+      </PageSection>
+
+      <div className="stagger grid md:grid-cols-2 gap-6">
         <Card>
           <h3 className="font-heading text-xl mb-3">7 hook angles</h3>
           <ul className="space-y-3 text-sm">

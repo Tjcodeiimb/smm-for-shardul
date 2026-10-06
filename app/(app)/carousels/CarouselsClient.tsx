@@ -17,7 +17,7 @@ import PromptRunner from "@/app/components/PromptRunner";
 
 type CarouselRow = { id: number; title: string; archetype: string; status: string; slide_count: number };
 
-const inputClass = "w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-2.5";
+const inputClass = "w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-2.5";
 
 export default function CarouselsClient({ brand, carousels }: { brand: BrandConfig; carousels: CarouselRow[] }) {
   const [tab, setTab] = useState("generate");
@@ -75,7 +75,7 @@ function GenerateTab({ brand }: { brand: BrandConfig }) {
   }
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
+    <div className="stagger grid lg:grid-cols-3 gap-6">
       <Card className="lg:col-span-2">
         <h3 className="font-heading text-xl mb-3">Carousel generator</h3>
         <div className="grid md:grid-cols-2 gap-3 mb-3">
@@ -232,7 +232,7 @@ function BankTab({ carousels }: { carousels: CarouselRow[] }) {
 
 function GuideTab() {
   return (
-    <div className="grid md:grid-cols-2 gap-6">
+    <div className="stagger grid md:grid-cols-2 gap-6">
       <Card>
         <h3 className="font-heading text-lg mb-3">Archetypes</h3>
         <div className="space-y-3 text-xs">
