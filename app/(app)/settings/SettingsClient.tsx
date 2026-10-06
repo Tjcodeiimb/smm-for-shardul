@@ -19,7 +19,8 @@ export default function SettingsClient({
   const [provider, setProvider] = useState(settings.provider);
   const [saved, setSaved] = useState(false);
 
-  const inputClass = "w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-2.5";
+  const inputClass = "w-full rounded-lg border bg-surface text-foreground text-sm px-3 py-2.5";
+  const labelClass = "text-xs font-medium text-muted mb-1.5 block";
 
   return (
     <form
@@ -28,10 +29,10 @@ export default function SettingsClient({
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       }}
-      className="space-y-4"
+      className="space-y-5"
     >
       <div>
-        <label className="text-xs text-muted block mb-1">Provider</label>
+        <label className={labelClass}>Provider</label>
         <select
           name="provider"
           value={provider}
@@ -47,7 +48,7 @@ export default function SettingsClient({
       </div>
 
       <div>
-        <label className="text-xs text-muted block mb-1">
+        <label className={labelClass}>
           API key {settings.hasKey && provider === settings.provider ? `(currently set: ${settings.keyPreview})` : ""}
         </label>
         <input
@@ -60,7 +61,7 @@ export default function SettingsClient({
       </div>
 
       <div>
-        <label className="text-xs text-muted block mb-1">
+        <label className={labelClass}>
           Model <span className="text-muted">(optional -- default: {defaultModels[provider] || "set your own"})</span>
         </label>
         <input
@@ -73,7 +74,7 @@ export default function SettingsClient({
 
       {provider === "custom" && (
         <div>
-          <label className="text-xs text-muted block mb-1">Custom endpoint URL (OpenAI-compatible chat completions)</label>
+          <label className={labelClass}>Custom endpoint URL (OpenAI-compatible chat completions)</label>
           <input
             name="customEndpoint"
             defaultValue={settings.customEndpoint}
@@ -83,8 +84,8 @@ export default function SettingsClient({
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <button className="rounded-full bg-accent text-accent-deep text-sm font-medium px-4 py-2">
+      <div className="flex items-center gap-3 pt-1">
+        <button className="rounded-full bg-accent text-accent-deep text-sm font-medium px-5 py-2.5">
           Save connection
         </button>
         {saved && <span className="text-xs text-accent">Saved ✓</span>}
@@ -96,8 +97,8 @@ export default function SettingsClient({
 export function RemoveKeyButton({ hasKey }: { hasKey: boolean }) {
   if (!hasKey) return null;
   return (
-    <form action={clearAiKeyAction} className="mt-3">
-      <button className="text-xs text-red-400/70 hover:text-red-400">Remove stored key</button>
+    <form action={clearAiKeyAction} className="mt-4">
+      <button className="text-xs text-red-700/70 hover:text-red-700">Remove stored key</button>
     </form>
   );
 }
