@@ -60,6 +60,7 @@ export async function updateCalendarItemStatus(fd: FormData) {
   revalidatePath("/calendar");
   revalidatePath("/");
   revalidatePath("/funnel");
+  revalidatePath("/pipeline");
 }
 
 export async function deleteCalendarItem(fd: FormData) {

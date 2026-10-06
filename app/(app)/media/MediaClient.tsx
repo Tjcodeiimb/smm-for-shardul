@@ -27,7 +27,7 @@ export default function MediaClient({ realScriptTitles = [] as string[] }: { rea
       >
         <span className="mx-auto grid place-items-center h-12 w-12 rounded-full bg-surface mb-3"><Icon name="upload" /></span>
         <div className="font-medium">Drop footage here</div>
-        <p className="text-sm text-muted mt-1">MP4, MOV, JPG or PNG. Files are auto-tagged by what's in them.</p>
+        <p className="text-sm text-muted mt-1">MP4, MOV, JPG or PNG. Files are auto-tagged by what&apos;s in them.</p>
         <div className="mt-4 flex justify-center gap-2">
           <button className="rounded-full bg-accent text-accent-deep px-5 py-2.5 text-sm font-medium">Browse files</button>
           <button className="rounded-full border border-border/15 px-5 py-2.5 text-sm hover:bg-foreground/5">Import from Google Drive</button>
