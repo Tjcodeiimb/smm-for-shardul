@@ -75,7 +75,7 @@ export default function PromptRunner({
         readOnly
         value={prompt}
         rows={5}
-        className="w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-3 font-mono"
+        className="w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-3 font-mono"
       />
 
       <div className="flex items-center gap-3 mt-3">
@@ -139,7 +139,7 @@ export default function PromptRunner({
             value={output}
             onChange={(e) => setOutput(e.target.value)}
             rows={10}
-            className="w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-3"
+            className="w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-3"
           />
         </div>
       )}

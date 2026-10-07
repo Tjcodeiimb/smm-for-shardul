@@ -15,7 +15,7 @@ export default function SignupForm() {
           name="email"
           autoFocus
           required
-          className="w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-2.5"
+          className="w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-2.5"
         />
       </div>
       <div>
@@ -25,7 +25,7 @@ export default function SignupForm() {
           name="password"
           required
           minLength={8}
-          className="w-full rounded-lg border border-border/15 bg-foreground/95 text-background text-sm p-2.5"
+          className="w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-2.5"
         />
         <p className="text-[11px] text-muted mt-1">At least 8 characters.</p>
       </div>

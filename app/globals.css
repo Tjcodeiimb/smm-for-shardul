@@ -61,10 +61,16 @@ h1, h2, h3, .font-heading {
   color: var(--background);
 }
 
-input, textarea, select {
-  color: var(--foreground);
-  border-color: var(--ash) !important;
-  border-radius: 8px !important;
+/* In @layer base so Tailwind text-color utilities (e.g. text-background on a
+   dark-filled input) can still override this default -- an unlayered rule
+   here would always beat utility classes regardless of specificity, which
+   previously made some inputs' text invisible against their own background. */
+@layer base {
+  input, textarea, select {
+    color: var(--foreground);
+    border-color: var(--ash) !important;
+    border-radius: 8px !important;
+  }
 }
 
 ::selection {
