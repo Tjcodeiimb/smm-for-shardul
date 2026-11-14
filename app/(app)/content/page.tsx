@@ -13,8 +13,10 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
   const { format } = await searchParams;
 
   const [scripts, carousels, calendar, counts, dismissed] = await Promise.all([
-    sql<{ id: number; title: string; duration_s: number | null; type: string | null; funnel_stage: string; word_count: number | null; is_reference: boolean; source: string; created_at: Date }[]>`
-      SELECT id, title, duration_s, type, funnel_stage, word_count, is_reference, source, created_at
+    sql<{ id: number; title: string; duration_s: number | null; type: string | null; funnel_stage: string; word_count: number | null; is_reference: boolean; source: string; created_at: Date; to_fix: number }[]>`
+      SELECT id, title, duration_s, type, funnel_stage, word_count, is_reference, source, created_at,
+        COALESCE((SELECT count(*)::int FROM jsonb_array_elements(CASE WHEN jsonb_typeof(checks->'results') = 'array' THEN checks->'results' ELSE '[]'::jsonb END) e
+          WHERE NOT COALESCE((e->>'pass')::boolean, true)), 0) AS to_fix
       FROM scripts WHERE user_id = ${userId} ORDER BY is_reference DESC, created_at DESC, id DESC`,
     sql<{ id: number; title: string; type: string | null; funnel_stage: string; slide_count: number; archetype: string; is_reference: boolean; source: string; created_at: Date }[]>`
       SELECT id, title, type, funnel_stage, slide_count, archetype, is_reference, source, created_at
@@ -51,6 +53,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
       words: s.word_count,
       reference: s.is_reference,
       starter: s.source === "seed",
+      toFix: s.to_fix,
       ...statusOf(`s${s.id}`),
     })),
     ...carousels.map((c) => ({

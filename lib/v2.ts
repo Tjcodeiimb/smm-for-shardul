@@ -23,17 +23,17 @@ export async function ensureV2Seed(userId: number) {
   `;
   if (claimed.length === 0) return;
 
-  await sql`INSERT INTO playbook_cards ${sql(
-    PLAYBOOK_CARDS.map((c, i) => ({ key: c.key, title: c.title, body: c.body, grp: c.grp, steps: JSON.stringify(c.steps), position: i, user_id: userId })),
-    "key", "title", "body", "grp", "steps", "position", "user_id"
-  )}`;
+  for (const [i, c] of PLAYBOOK_CARDS.entries()) {
+    await sql`INSERT INTO playbook_cards (key, title, body, grp, steps, position, user_id)
+      VALUES (${c.key}, ${c.title}, ${c.body}, ${c.grp}, ${sql.json(c.steps as never)}, ${i}, ${userId})`;
+  }
   await sql`INSERT INTO rules ${sql(
     SEED_RULES.map((r, i) => ({ text: r.text, category: r.category, position: i, user_id: userId })),
     "text", "category", "position", "user_id"
   )}`;
   await sql`
     INSERT INTO lessons (text, scope, applies_to, evidence, status, user_id)
-    VALUES (${SEED_LESSON.text}, ${SEED_LESSON.scope}, ${JSON.stringify({ all: true })}, ${SEED_LESSON.evidence}, ${SEED_LESSON.status}, ${userId})
+    VALUES (${SEED_LESSON.text}, ${SEED_LESSON.scope}, ${sql.json({ all: true } as never)}, ${SEED_LESSON.evidence}, ${SEED_LESSON.status}, ${userId})
   `;
   await sql`INSERT INTO ideas ${sql(
     SEED_IDEAS.map((x) => ({ text: x.text, suggested_type: x.suggestedType, board: "favourite", status: "new", user_id: userId })),
@@ -56,7 +56,7 @@ export async function ensureV2Seed(userId: number) {
         duration_s, type, template, hook_text, word_count, est_seconds, beats, is_reference, source, user_id
       ) VALUES (
         ${r.title}, 'authority', 'storytelling', 'Reel', ${say}, ${r.board ? `Board: ${r.board}` : ""}, ${notes}, 'none', ${r.funnel}, 'ready',
-        ${r.duration}, ${r.type}, ${r.template}, ${r.say[0]}, ${words}, ${Math.round(words / 2.5)}, ${JSON.stringify(beats)}, TRUE, 'reference', ${userId}
+        ${r.duration}, ${r.type}, ${r.template}, ${r.say[0]}, ${words}, ${Math.round(words / 2.5)}, ${sql.json(beats as never)}, TRUE, 'reference', ${userId}
       )
     `;
   }

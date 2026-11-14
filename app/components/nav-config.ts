@@ -13,21 +13,12 @@ export const AREAS: Area[] = [
     description: "Collect ideas, verify facts, and keep the playbook.",
     tabs: [
       { href: "/research", label: "Ideas", description: "Capture ideas and score them" },
+      { href: "/research/briefs", label: "Briefs", description: "Verified facts for one topic" },
       { href: "/research/references", label: "References", description: "Outliers from other creators and what to borrow" },
       { href: "/research/playbook", label: "Playbook", description: "The rules your scripts follow" },
     ],
   },
-  {
-    href: "/scripts",
-    label: "Studio",
-    description: "Write a hook, a script or a carousel.",
-    tabs: [
-      { href: "/scripts", label: "Write", description: "Write a new script" },
-      { href: "/improve", label: "Improve", description: "Diagnose and tighten a saved script" },
-      { href: "/hooks", label: "Hooks", description: "Generate and save hooks" },
-      { href: "/carousels", label: "Carousel", description: "Write a carousel slide by slide" },
-    ],
-  },
+  { href: "/studio", label: "Studio", description: "Write a hook, a script or a carousel, from idea to finished script." },
   { href: "/content", label: "Content", description: "Every script and carousel you have." },
   {
     href: "/calendar",

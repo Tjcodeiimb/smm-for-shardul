@@ -188,14 +188,14 @@ export async function createHookStack(fd: FormData) {
     INSERT INTO hook_stacks (written, verbal, visual, angle, topic, user_id)
     VALUES (${val(fd, "written")}, ${val(fd, "verbal")}, ${val(fd, "visual")}, ${val(fd, "angle")}, ${val(fd, "topic")}, ${userId})
   `;
-  revalidatePath("/hooks");
+  revalidatePath("/studio");
 }
 
 export async function deleteHookStack(fd: FormData) {
   await ensureSchema();
   const userId = await requireUserId();
   await sql`DELETE FROM hook_stacks WHERE id = ${id(fd)} AND user_id = ${userId}`;
-  revalidatePath("/hooks");
+  revalidatePath("/studio");
 }
 
 // ---------- Scripts ----------
@@ -209,7 +209,7 @@ export async function createScript(fd: FormData) {
     VALUES (${val(fd, "title", "Untitled script")}, ${val(fd, "pillar", "authority")}, ${val(fd, "content_type", "educational")}, ${val(fd, "angle_or_story_type")}, ${val(fd, "format")}, ${val(fd, "body_black")}, ${val(fd, "body_red")}, ${val(fd, "body_green")}, ${val(fd, "cta_type", "follow")}, ${val(fd, "funnel_stage", "tofu")}, ${val(fd, "status", "draft")}, ${val(fd, "series_name")},
       ${words}, ${Math.round(words / 2.5)}, ${durationForWords(words)}, 'studio', ${userId})
   `;
-  revalidatePath("/scripts");
+  revalidatePath("/content");
   revalidatePath("/content");
   revalidatePath("/production");
 }
@@ -218,7 +218,7 @@ export async function deleteScript(fd: FormData) {
   await ensureSchema();
   const userId = await requireUserId();
   await sql`DELETE FROM scripts WHERE id = ${id(fd)} AND user_id = ${userId}`;
-  revalidatePath("/scripts");
+  revalidatePath("/content");
   revalidatePath("/production");
 }
 
@@ -229,14 +229,14 @@ export async function createScriptTemplate(fd: FormData) {
     INSERT INTO script_templates (name, pillar, angle, source_note, template_text, user_id)
     VALUES (${val(fd, "name", "Untitled template")}, ${val(fd, "pillar", "authority")}, ${val(fd, "angle")}, ${val(fd, "source_note")}, ${val(fd, "template_text")}, ${userId})
   `;
-  revalidatePath("/scripts");
+  revalidatePath("/content");
 }
 
 export async function deleteScriptTemplate(fd: FormData) {
   await ensureSchema();
   const userId = await requireUserId();
   await sql`DELETE FROM script_templates WHERE id = ${id(fd)} AND user_id = ${userId}`;
-  revalidatePath("/scripts");
+  revalidatePath("/content");
 }
 
 // ---------- Own posts / analytics ----------

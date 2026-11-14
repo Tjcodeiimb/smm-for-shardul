@@ -7,7 +7,11 @@ const nextConfig: NextConfig = {
     return [
       { source: "/library", destination: "/content", permanent: false },
       { source: "/carousel-library", destination: "/content?format=carousel", permanent: false },
-      { source: "/prompts", destination: "/scripts", permanent: false },
+      { source: "/prompts", destination: "/studio", permanent: false },
+      { source: "/scripts", destination: "/studio", permanent: false },
+      { source: "/improve", destination: "/studio", permanent: false },
+      { source: "/hooks", destination: "/studio", permanent: false },
+      { source: "/carousels", destination: "/studio?format=carousel", permanent: false },
       { source: "/funnel", destination: "/research/playbook", permanent: false },
       { source: "/media", destination: "/dashboard", permanent: false },
       { source: "/publish", destination: "/dashboard", permanent: false },

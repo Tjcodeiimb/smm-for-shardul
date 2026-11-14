@@ -72,7 +72,7 @@ export async function bulkImportScriptsAction(_prev: BulkImportResult | null, fd
     )}
   `;
 
-  revalidatePath("/scripts");
+  revalidatePath("/content");
   revalidatePath("/content");
   revalidatePath("/production");
   revalidatePath("/content");

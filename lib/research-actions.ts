@@ -35,7 +35,7 @@ export async function updateIdeaAction(input: { id: number; board?: string; stat
   if (input.status && IDEA_STATUSES.includes(input.status)) await sql`UPDATE ideas SET status = ${input.status} WHERE id = ${input.id} AND user_id = ${userId}`;
   if (input.score && input.score.length === 10) {
     const checks = input.score.map(Boolean);
-    await sql`UPDATE ideas SET score = ${JSON.stringify({ checks, total: checks.filter(Boolean).length })} WHERE id = ${input.id} AND user_id = ${userId}`;
+    await sql`UPDATE ideas SET score = ${sql.json({ checks, total: checks.filter(Boolean).length } as never)} WHERE id = ${input.id} AND user_id = ${userId}`;
   }
   if (typeof input.note === "string") await sql`UPDATE ideas SET note = ${input.note.trim()} WHERE id = ${input.id} AND user_id = ${userId}`;
   revalidatePath("/research");

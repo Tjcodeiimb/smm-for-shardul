@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { DURATIONS, TYPES, FUNNELS, CONTENT_STATUSES, durationLabel, typeLabel, funnelLabel } from "@/lib/taxonomy";
 import {
   deleteContentAction,
@@ -24,6 +25,7 @@ export type ContentRow = {
   slides?: number;
   reference: boolean;
   starter: boolean;
+  toFix?: number;
   status: string;
   date: string;
 };
@@ -305,6 +307,7 @@ function Row({
             <span className="truncate">{row.title}</span>
             {row.reference && <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[11px] text-accent-deep">Reference</span>}
             {row.starter && <span className="shrink-0 rounded-full bg-foreground/10 px-2 py-0.5 text-[11px] text-muted">Starter</span>}
+            {Boolean(row.toFix) && <span className="shrink-0 rounded-full bg-red-700/10 px-2 py-0.5 text-[11px] text-red-700" title="Checks that failed when it was saved">{row.toFix} to fix</span>}
           </span>
           <span className="mt-0.5 block text-xs text-muted md:hidden">
             {row.kind === "carousel" ? "Carousel" : durationLabel(row.duration)} · {typeLabel(row.type)} · {funnelLabel(row.funnel, true)} · {row.status}
@@ -363,7 +366,19 @@ function Detail({ row, onDelete, onChanged }: { row: ContentRow; onDelete: () =>
           <Layer label="Screen" text={body.screen} />
         </div>
       )}
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+      <div className="mt-4 flex flex-wrap gap-2 text-sm">
+        {row.kind === "script" ? (
+          <>
+            <Link href={`/studio?id=${row.id}`} className="rounded-full bg-accent px-4 py-1.5 font-medium text-accent-deep">Open in Studio</Link>
+            <Link href={`/studio?id=${row.id}&mode=improve`} className="rounded-full border px-4 py-1.5 hover:bg-foreground/5">Improve</Link>
+            <Link href={`/studio?id=${row.id}&mode=resize`} className="rounded-full border px-4 py-1.5 hover:bg-foreground/5">Resize</Link>
+            <Link href={`/studio?fromScript=${row.id}&format=carousel`} className="rounded-full border px-4 py-1.5 hover:bg-foreground/5">Make carousel</Link>
+          </>
+        ) : (
+          <Link href={`/studio?carousel=${row.id}`} className="rounded-full bg-accent px-4 py-1.5 font-medium text-accent-deep">Open in Studio</Link>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Schedule date" className="border bg-surface px-3 py-1.5 text-sm" />
         <button
           disabled={!date || pending}

@@ -338,6 +338,15 @@ async function migrateV2() {
     UPDATE scripts SET word_count = COALESCE(array_length(regexp_split_to_array(btrim(COALESCE(body_black, '')), '\\s+'), 1), 0)
       WHERE word_count IS NULL;
     UPDATE scripts SET est_seconds = ROUND(word_count / 2.5) WHERE est_seconds IS NULL;
+    -- Repair JSON values that were stored double-encoded (as a JSON string).
+    UPDATE playbook_cards SET steps = (steps #>> '{}')::jsonb WHERE jsonb_typeof(steps) = 'string';
+    UPDATE lessons SET applies_to = (applies_to #>> '{}')::jsonb WHERE jsonb_typeof(applies_to) = 'string';
+    UPDATE scripts SET beats = (beats #>> '{}')::jsonb WHERE jsonb_typeof(beats) = 'string';
+    UPDATE scripts SET checks = (checks #>> '{}')::jsonb WHERE jsonb_typeof(checks) = 'string';
+    UPDATE script_versions SET snapshot = (snapshot #>> '{}')::jsonb WHERE jsonb_typeof(snapshot) = 'string';
+    UPDATE ideas SET score = (score #>> '{}')::jsonb WHERE jsonb_typeof(score) = 'string';
+    UPDATE briefs SET facts = (facts #>> '{}')::jsonb WHERE jsonb_typeof(facts) = 'string';
+    UPDATE briefs SET anchors = (anchors #>> '{}')::jsonb WHERE jsonb_typeof(anchors) = 'string';
     UPDATE scripts SET duration_s = CASE
         WHEN word_count <= 55 THEN 20 WHEN word_count <= 80 THEN 30 WHEN word_count <= 95 THEN 35
         WHEN word_count <= 120 THEN 45 WHEN word_count <= 160 THEN 60 ELSE 90 END

@@ -47,7 +47,7 @@ export async function saveCarouselAction(fd: FormData) {
     INSERT INTO carousel_slides ${sql(slideRows, "carousel_id", "slide_number", "slide_role", "headline", "supporting_text", "user_id")}
   `;
 
-  revalidatePath("/carousels");
+  revalidatePath("/content");
   revalidatePath("/content");
 }
 
@@ -55,7 +55,7 @@ export async function deleteCarouselAction(fd: FormData) {
   await ensureSchema();
   const userId = await requireUserId();
   await sql`DELETE FROM carousels WHERE id = ${numVal(fd, "id")} AND user_id = ${userId}`;
-  revalidatePath("/carousels");
+  revalidatePath("/content");
   revalidatePath("/content");
 }
 

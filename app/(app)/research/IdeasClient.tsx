@@ -100,6 +100,7 @@ function IdeaCard({ idea }: { idea: Idea }) {
         >
           {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
+        <a href={`/studio?idea=${idea.id}`} className="rounded-full bg-accent px-3 py-1.5 font-medium text-accent-deep">Send to Studio</a>
         <button onClick={() => setScoring((s) => !s)} className="rounded-full border px-3 py-1.5 hover:bg-foreground/5">
           {scoring ? "Close test" : total !== undefined ? "Re-score" : "Score it"}
         </button>
