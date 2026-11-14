@@ -2,28 +2,38 @@ import postgres from "postgres";
 
 const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
 
-if (!connectionString) {
-  throw new Error(
-    "DATABASE_URL is not set. Add your Supabase/Postgres connection string to .env.local (see .env.example)."
-  );
-}
-
 const isLocal = /localhost|127\.0\.0\.1/.test(connectionString);
 
 declare global {
   var __chillchaiSql: ReturnType<typeof postgres> | undefined;
 }
 
+const MISSING_URL =
+  "DATABASE_URL is not set. Add your Supabase/Postgres connection string to .env.local, or to the Vercel project's environment variables for every environment (see .env.example).";
+
+// Without DATABASE_URL, importing this module must not throw: `next build`
+// imports every route to collect page data, and a throw here fails the whole
+// build (this is what broke Vercel preview builds). Instead the client throws
+// a clear error the first time a query actually runs.
+function missingClient(): ReturnType<typeof postgres> {
+  const fail = () => {
+    throw new Error(MISSING_URL);
+  };
+  return new Proxy(fail, { apply: fail, get: fail }) as unknown as ReturnType<typeof postgres>;
+}
+
 export const sql =
   globalThis.__chillchaiSql ??
-  postgres(connectionString, {
-    ssl: isLocal ? false : "require",
-    // Supabase's pooled connection (pgbouncer, transaction mode) doesn't support
-    // server-side prepared statements.
-    prepare: false,
-  });
+  (connectionString
+    ? postgres(connectionString, {
+        ssl: isLocal ? false : "require",
+        // Supabase's pooled connection (pgbouncer, transaction mode) doesn't
+        // support server-side prepared statements.
+        prepare: false,
+      })
+    : missingClient());
 
-if (process.env.NODE_ENV !== "production") globalThis.__chillchaiSql = sql;
+if (process.env.NODE_ENV !== "production" && connectionString) globalThis.__chillchaiSql = sql;
 
 let schemaReady: Promise<void> | null = null;
 
