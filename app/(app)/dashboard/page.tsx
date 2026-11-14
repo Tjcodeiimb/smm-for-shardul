@@ -1,242 +1,102 @@
 import Link from "next/link";
 import { sql } from "@/lib/db";
-import { getBrand } from "@/lib/brand";
 import { requireUserId } from "@/lib/auth";
-import { Card, Badge, PageSection, Stat } from "@/app/components/ui";
-import { NAV_GROUPS } from "@/app/components/nav-config";
-import { Icon } from "@/app/components/Icons";
-import Quickstart from "@/app/components/Quickstart";
-import ReelCard, { type Reel } from "@/app/components/ReelCard";
-
-function levelFor(followers: number) {
-  if (followers < 1000) return { level: 1, floor: 0, ceil: 1000, name: "Foundation (0 -> 1k)" };
-  if (followers < 10000) return { level: 2, floor: 1000, ceil: 10000, name: "Data & Scale (1k -> 10k)" };
-  return { level: 3, floor: 10000, ceil: 100000, name: "Personal Brand (10k -> 100k)" };
-}
-
-function formatViews(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
-
-function hueFromString(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
-  return h;
-}
-
-const REEL_STYLES = ["caption", "bold", "split"] as const;
+import { ensureV2Seed } from "@/lib/v2";
+import { AREAS } from "@/app/components/nav-config";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+function isoDay(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+// Home (v2 brief, section 4.1): four doors, one live number each, and a
+// single "This week" strip. Nothing else.
+export default async function HomePage() {
   const userId = await requireUserId();
-  const [brand, pillarCounts, conceptCounts, upcoming, outliers] = await Promise.all([
-    getBrand(userId),
-    sql<{ pillar: string; n: number }[]>`
-      SELECT pillar, COUNT(*)::int as n FROM calendar_items WHERE user_id = ${userId} GROUP BY pillar
-    `,
-    sql<{ concept_bucket: string; n: number }[]>`
-      SELECT concept_bucket, COUNT(*)::int as n FROM calendar_items WHERE user_id = ${userId} GROUP BY concept_bucket
-    `,
-    sql<{ id: number; date: string; topic: string; pillar: string; status: string }[]>`
-      SELECT * FROM calendar_items WHERE status != 'posted' AND user_id = ${userId} ORDER BY date ASC LIMIT 6
-    `,
-    sql<{ creator_handle: string; views: number; follower_count: number; hook_written: string; hook_verbal: string }[]>`
-      SELECT creator_handle, views, follower_count, hook_written, hook_verbal FROM outlier_research
-      WHERE user_id = ${userId} AND views > 0 ORDER BY (views::float / GREATEST(follower_count, 1)) DESC LIMIT 6
-    `,
+  await ensureV2Seed(userId);
+
+  const today = new Date();
+  const dow = (today.getUTCDay() + 6) % 7; // Monday = 0
+  const monday = new Date(today);
+  monday.setUTCDate(today.getUTCDate() - dow);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  const twoWeeksAgo = new Date(today);
+  twoWeeksAgo.setUTCDate(today.getUTCDate() - 14);
+
+  const [[n], upcoming, awaiting] = await Promise.all([
+    sql<{ ideas: number; drafts: number; content: number; week: number }[]>`
+      SELECT
+        (SELECT count(*)::int FROM ideas WHERE user_id = ${userId} AND status IN ('new', 'researching', 'ready')) AS ideas,
+        (SELECT count(*)::int FROM scripts s WHERE s.user_id = ${userId} AND s.source <> 'seed' AND NOT s.is_reference AND s.status = 'draft'
+           AND NOT EXISTS (SELECT 1 FROM calendar_items c WHERE c.script_id = s.id)) AS drafts,
+        (SELECT count(*)::int FROM scripts WHERE user_id = ${userId}) + (SELECT count(*)::int FROM carousels WHERE user_id = ${userId}) AS content,
+        (SELECT count(*)::int FROM calendar_items WHERE user_id = ${userId} AND date BETWEEN ${isoDay(monday)} AND ${isoDay(sunday)}) AS week`,
+    sql<{ id: number; date: string; topic: string; status: string; format: string }[]>`
+      SELECT id, date, topic, status, format FROM calendar_items
+      WHERE user_id = ${userId} AND date >= ${isoDay(today)} AND status <> 'posted'
+      ORDER BY date ASC, id ASC LIMIT 6`,
+    sql<{ id: number; date: string; topic: string }[]>`
+      SELECT c.id, c.date, c.topic FROM calendar_items c
+      WHERE c.user_id = ${userId} AND c.status = 'posted' AND c.date >= ${isoDay(twoWeeksAgo)}
+        AND NOT EXISTS (
+          SELECT 1 FROM own_posts p WHERE p.user_id = ${userId}
+            AND ((c.script_id IS NOT NULL AND p.script_id = c.script_id) OR (c.carousel_id IS NOT NULL AND p.carousel_id = c.carousel_id))
+        )
+      ORDER BY c.date DESC LIMIT 6`,
   ]);
 
-  const level = levelFor(brand.followerCount);
-  const progressPct = Math.min(
-    100,
-    Math.round(((brand.followerCount - level.floor) / (level.ceil - level.floor)) * 100)
-  );
+  const doors = [
+    { area: AREAS[0], value: n.ideas, unit: n.ideas === 1 ? "idea waiting" : "ideas waiting" },
+    { area: AREAS[1], value: n.drafts, unit: n.drafts === 1 ? "draft in progress" : "drafts in progress" },
+    { area: AREAS[2], value: n.content, unit: n.content === 1 ? "piece in Content" : "pieces in Content" },
+    { area: AREAS[3], value: n.week, unit: n.week === 1 ? "post this week" : "posts this week" },
+  ];
 
-  const totalItems = pillarCounts.reduce((s, r) => s + r.n, 0);
-
-  const authorityCount = pillarCounts.find((r) => r.pillar === "authority")?.n ?? 0;
-  const authorityPct = totalItems ? Math.round((authorityCount / totalItems) * 100) : 0;
-  const journeyPct = totalItems ? 100 - authorityPct : 0;
-
-  const name = brand.nameField.split("|")[0].trim() || "Creator";
-  const conceptTotal = conceptCounts.reduce((t, r) => t + r.n, 0);
-
-  const trendingReels: Reel[] = outliers.map((o, i) => ({
-    handle: o.creator_handle || "Outlier",
-    hook: o.hook_written || o.hook_verbal || "(no hook logged)",
-    views: formatViews(o.views),
-    multiple: Math.round((o.views / Math.max(o.follower_count, 1)) * 10) / 10,
-    hue: hueFromString(o.creator_handle || String(i)),
-    style: REEL_STYLES[i % REEL_STYLES.length],
-  }));
+  const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
   return (
     <div>
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 mb-12">
-        <div data-tour="dash-hero" className="rounded-[28px] bg-card p-8 md:p-10 flex flex-col justify-between min-h-[240px]">
-          <div>
-            <div className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">Dashboard</div>
-            <h1 className="font-heading text-4xl md:text-[56px] leading-[1] mt-3">Welcome back, {name}</h1>
-            <p className="text-muted mt-4 max-w-xl">
-              Your content operating system for the next 60-100 videos, built on your growth blueprint.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-8">
-            <Link href="/calendar" className="rounded-full bg-accent text-accent-deep text-sm font-medium px-5 py-2.5">Plan next batch</Link>
-            <Link href="/scripts" className="rounded-full border border-border/15 text-sm px-5 py-2.5 hover:bg-foreground/5">Write a script</Link>
-          </div>
-        </div>
-        <div data-tour="dash-level" className="relative isolate overflow-hidden rounded-[28px] bg-accent text-accent-deep p-8 flex flex-col justify-between">
-          <div aria-hidden className="drift pointer-events-none absolute -z-10 -right-16 -top-16 h-56 w-56 rounded-full bg-surface/30" />
-          <div>
-            <div className="text-[11px] font-medium uppercase tracking-[0.1em] opacity-70">Current level</div>
-            <div className="font-heading text-[56px] leading-none mt-3">Level {level.level}</div>
-            <div className="text-sm mt-2 opacity-80">{level.name}</div>
-          </div>
-          <div className="mt-8">
-            <div className="h-2 rounded-full bg-accent-deep/15 overflow-hidden">
-              <div className="bar-grow h-full bg-accent-deep" style={{ width: `${progressPct}%` }} />
-            </div>
-            <div className="text-xs mt-2 opacity-80">
-              {brand.followerCount.toLocaleString()} / {level.ceil.toLocaleString()} followers · {(level.ceil - brand.followerCount).toLocaleString()} to go
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4 stagger">
+        {doors.map((d) => (
+          <Link key={d.area.label} href={d.area.href} className="group rounded-[28px] bg-card p-5 md:p-7 transition-colors hover:bg-accent">
+            <div className="font-heading text-xl md:text-2xl">{d.area.label}</div>
+            <div className="mt-6 md:mt-10 font-heading text-4xl md:text-5xl tabular-nums">{d.value.toLocaleString()}</div>
+            <div className="mt-1 text-sm text-muted group-hover:text-accent-deep">{d.unit}</div>
+          </Link>
+        ))}
       </div>
 
-      <div className="mb-12">
-        <Quickstart />
-      </div>
-
-      <PageSection
-        title="Trending in your niche"
-        description="Your logged outliers, ranked by views-to-follower multiple."
-        actions={<Link href="/research" className="text-sm font-medium hover:underline underline-offset-4">See all outliers →</Link>}
-      >
-        {trendingReels.length === 0 ? (
-          <Card>
-            <p className="text-sm text-muted">
-              No outliers logged yet.{" "}
-              <Link href="/research" className="text-foreground underline underline-offset-4">
-                Log your first find
-              </Link>{" "}
-              to see it here.
+      <section className="mt-10">
+        <h2 className="font-heading text-2xl">This week</h2>
+        <div className="mt-4 rounded-[28px] bg-card p-2">
+          {upcoming.length === 0 && awaiting.length === 0 ? (
+            <p className="p-5 text-sm text-muted">
+              Nothing scheduled yet. Pick something in <Link href="/content" className="underline underline-offset-2">Content</Link> and schedule it.
             </p>
-          </Card>
-        ) : (
-          <div className="stagger grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {trendingReels.map((r) => (
-              <ReelCard key={r.handle} reel={r} />
-            ))}
-          </div>
-        )}
-      </PageSection>
-
-      <PageSection title="Content mix" description="How your planned batch tracks against the ratios set in Brand Foundation.">
-        <div className="stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Stat label="Planned items" value={totalItems} hint={`Posting ${brand.postingCadence.timesPerWeek}x / week`} />
-          <Stat
-            label="Authority"
-            value={`${authorityPct}%`}
-            hint={
-              <div>
-                <div className="h-1.5 rounded-full bg-foreground/10 overflow-hidden mb-2">
-                  <div className="bar-grow h-full bg-accent" style={{ width: `${authorityPct}%` }} />
-                </div>
-                Target {brand.pillarRatio.authority}%
-              </div>
-            }
-          />
-          <Stat label="Journey" value={`${journeyPct}%`} hint={`Target ${brand.pillarRatio.journey}%`} />
-          <Stat
-            label="Concept split"
-            value={conceptTotal}
-            hint={
-              <div className="flex flex-wrap gap-1.5">
-                {["proven", "double_down", "experimental"].map((k) => (
-                  <Badge key={k} tone={k === "proven" ? "accent" : "default"}>
-                    {k.replace("_", " ")} {conceptCounts.find((r) => r.concept_bucket === k)?.n ?? 0}
-                  </Badge>
-                ))}
-              </div>
-            }
-          />
-        </div>
-      </PageSection>
-
-      <PageSection
-        title="Upcoming in the batch"
-        actions={<Link href="/calendar" className="text-sm font-medium hover:underline underline-offset-4">Open calendar →</Link>}
-      >
-        <Card>
-          {upcoming.length === 0 ? (
-            <div className="py-10 text-center">
-              <div className="font-heading text-xl">Nothing scheduled yet</div>
-              <p className="text-sm text-muted mt-2">Plan your first batch to see it here.</p>
-              <Link href="/calendar" className="inline-block mt-5 rounded-full bg-accent text-accent-deep text-sm font-medium px-5 py-2.5">Go to calendar</Link>
-            </div>
           ) : (
-            <ul className="divide-y divide-border/10">
-              {upcoming.map((item) => (
-                <li key={item.id} className="py-3 flex items-center justify-between text-sm">
-                  <span>
-                    <span className="text-muted mr-3 tabular-nums">{item.date}</span>
-                    {item.topic || "(untitled topic)"}
-                  </span>
-                  <span className="flex gap-2">
-                    <Badge>{item.pillar}</Badge>
-                    <Badge tone="accent">{item.status}</Badge>
-                  </span>
+            <ul>
+              {upcoming.map((c) => (
+                <li key={`u${c.id}`} className="flex items-center gap-4 rounded-[18px] px-4 py-3 hover:bg-surface">
+                  <span className="w-28 shrink-0 text-sm text-muted">{fmt(c.date)}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{c.topic || "Untitled"}</span>
+                  <span className="rounded-full bg-foreground/10 px-2.5 py-0.5 text-xs capitalize">{c.status === "filmed" ? "shot" : c.status}</span>
+                </li>
+              ))}
+              {awaiting.map((c) => (
+                <li key={`a${c.id}`} className="flex items-center gap-4 rounded-[18px] px-4 py-3 hover:bg-surface">
+                  <span className="w-28 shrink-0 text-sm text-muted">{fmt(c.date)}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{c.topic || "Untitled"}</span>
+                  <Link href="/analytics" className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-deep">
+                    Log its numbers
+                  </Link>
                 </li>
               ))}
             </ul>
           )}
-        </Card>
-      </PageSection>
-
-      {NAV_GROUPS.filter((g) => g.title !== "Overview").map((g) => (
-        <PageSection key={g.title} title={g.title}>
-          <div className="stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {g.items.map((l) => (
-              <Link key={l.href} href={l.href} className="lift group rounded-[28px] bg-card p-6 hover:bg-accent hover:text-accent-deep">
-                <span className="grid place-items-center h-10 w-10 rounded-full bg-surface text-foreground mb-6">
-                  <Icon name={l.icon} />
-                </span>
-                <div className="font-heading text-lg flex items-center justify-between">{l.label}<span className="arrow text-muted group-hover:text-accent-deep">→</span></div>
-                <div className="text-sm text-muted group-hover:text-accent-deep/70 mt-1">{DESCRIPTIONS[l.href]}</div>
-                {l.tabs && (
-                  <div className="flex flex-wrap gap-1.5 mt-4">
-                    {l.tabs.map((t) => (
-                      <span key={t.href} className="rounded-full bg-surface px-2.5 py-0.5 text-xs text-foreground">{t.label}</span>
-                    ))}
-                  </div>
-                )}
-              </Link>
-            ))}
-          </div>
-        </PageSection>
-      ))}
+        </div>
+      </section>
     </div>
   );
 }
-
-const DESCRIPTIONS: Record<string, string> = {
-  "/brand": "Niche, story, visual identity, profile",
-  "/calendar": "Plan batches and track ratios",
-  "/research": "5x outlier log and keyword bank",
-  "/pipeline": "Every video from idea to posted",
-  "/publish": "Schedule and auto-post to your accounts",
-  "/hooks": "Hook stacks, 7 angles, templates",
-  "/scripts": "Write, improve and browse scripts in one place",
-  "/improve": "Rewrite and tighten any script",
-  "/carousels": "Build carousels and browse saved ones",
-  "/production": "Shot lists and your media bank",
-  "/funnel": "TOFU/MOFU/BOFU and captions",
-  "/analytics": "Performance and what to make next",
-  "/library": "Ready-made script library",
-  "/carousel-library": "Saved and template carousels",
-  "/prompts": "Every AI prompt in one place",
-};

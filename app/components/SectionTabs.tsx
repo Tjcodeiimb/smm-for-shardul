@@ -2,24 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { findItem } from "./nav-config";
+import { findArea } from "./nav-config";
 
-// Shared tab bar for a merged sidebar item (e.g. Scripts: Write / Improve / Library).
+// The one level of sub-tabs inside an area (e.g. Calendar: Month / Week / ...).
 export default function SectionTabs() {
   const pathname = usePathname();
-  const found = findItem(pathname);
-  if (!found?.item.tabs) return null;
+  const found = findArea(pathname);
+  if (!found?.area.tabs) return null;
 
   return (
-    <div data-tour="section-tabs" className="mb-8 flex flex-wrap items-center justify-between gap-3">
-      <div className="inline-flex rounded-full bg-card p-1">
-        {found.item.tabs.map((t) => {
+    <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+      <div className="inline-flex max-w-full overflow-x-auto rounded-full bg-card p-1">
+        {found.area.tabs.map((t) => {
           const active = t.href === pathname;
           return (
             <Link
               key={t.href}
               href={t.href}
-              className={`rounded-full px-5 py-2 text-sm transition-colors ${active ? "bg-surface font-medium" : "text-muted hover:text-foreground"}`}
+              className={`shrink-0 rounded-full px-5 py-2 text-sm transition-colors ${active ? "bg-surface font-medium" : "text-muted hover:text-foreground"}`}
             >
               {t.label}
             </Link>

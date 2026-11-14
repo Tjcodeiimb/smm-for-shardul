@@ -3,10 +3,8 @@ import { getBrand } from "@/lib/brand";
 import { requireUserId } from "@/lib/auth";
 import { SCRIPT_ANGLES, UNIVERSAL_HOOK_TEMPLATES } from "@/lib/reference";
 import { createHookStack, deleteHookStack } from "@/lib/actions";
-import { Card, SectionHeader, Badge, DeleteForm, PageSection } from "@/app/components/ui";
+import { Card, SectionHeader, Badge, DeleteForm } from "@/app/components/ui";
 import HookGenerator from "./HookGenerator";
-import ReelCard from "@/app/components/ReelCard";
-import { HOOK_ANGLE_EXAMPLES } from "@/lib/mock-data";
 
 type HookStack = {
   id: number;
@@ -103,22 +101,6 @@ export default async function HooksPage() {
         )}
       </Card>
 
-      <PageSection title="Hook angles on screen" description="One example reel per angle, showing how the hook reads in the first second.">
-        <div className="stagger flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-          {SCRIPT_ANGLES.map((a) => {
-            const ex = HOOK_ANGLE_EXAMPLES[a.name];
-            if (!ex) return null;
-            return (
-              <ReelCard
-                key={a.id}
-                size="sm"
-                reel={{ handle: "@example", hook: ex.hook, views: "Example", hue: ex.hue, style: ex.style, label: a.name.split(" /")[0] }}
-                footer={<div className="mt-2 px-1 text-xs font-medium">{a.name}</div>}
-              />
-            );
-          })}
-        </div>
-      </PageSection>
 
       <div className="stagger grid md:grid-cols-2 gap-6">
         <Card>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { sql, ensureSchema } from "./db";
 import { splitScriptBlocks, classifyScriptBlocks } from "./bulk-import";
 import { requireUserId } from "./auth";
+import { countWords, durationForWords } from "./taxonomy";
 
 export type BulkImportResult = { imported: number; skipped: number };
 
@@ -38,6 +39,10 @@ export async function bulkImportScriptsAction(_prev: BulkImportResult | null, fd
     effort: c.effort,
     topic_tag: c.topicTag,
     segment: c.segment,
+    source: "import",
+    word_count: countWords(c.bodyBlack),
+    est_seconds: Math.round(countWords(c.bodyBlack) / 2.5),
+    duration_s: durationForWords(countWords(c.bodyBlack)),
     user_id: userId,
   }));
 
@@ -59,15 +64,19 @@ export async function bulkImportScriptsAction(_prev: BulkImportResult | null, fd
       "effort",
       "topic_tag",
       "segment",
+      "source",
+      "word_count",
+      "est_seconds",
+      "duration_s",
       "user_id"
     )}
   `;
 
   revalidatePath("/scripts");
-  revalidatePath("/library");
+  revalidatePath("/content");
   revalidatePath("/production");
-  revalidatePath("/funnel");
-  revalidatePath("/");
+  revalidatePath("/content");
+  revalidatePath("/dashboard");
 
   return { imported: rows.length, skipped };
 }

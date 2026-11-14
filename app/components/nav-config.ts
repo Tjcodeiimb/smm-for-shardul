@@ -1,86 +1,54 @@
-import type { IconName } from "./Icons";
+// v2 navigation (docs/v2/UPCREATE_V2_HANDOFF.md, section 4): four areas and
+// nothing else. Each area may have one level of sub-tabs; each tab keeps its
+// own route. Home (/dashboard) is reached from the logo; Settings and Profile
+// sit behind the account avatar.
 
 export type Tab = { href: string; label: string; description: string };
+export type Area = { href: string; label: string; description: string; tabs?: Tab[] };
 
-// `tabs` marks an item that merges several closely related pages into one
-// sidebar entry; each page keeps its own route and shows the shared tab bar.
-type Item = { href: string; label: string; icon: IconName; tabs?: Tab[] };
-
-export const NAV_GROUPS: { title: string; items: Item[] }[] = [
-  { title: "Overview", items: [{ href: "/dashboard", label: "Dashboard", icon: "home" }] },
+export const AREAS: Area[] = [
   {
-    title: "Plan",
-    items: [
-      { href: "/brand", label: "Brand Foundation", icon: "brand" },
-      { href: "/calendar", label: "Calendar", icon: "calendar" },
-      { href: "/pipeline", label: "Pipeline", icon: "kanban" },
-      { href: "/research", label: "Outlier Research", icon: "search" },
+    href: "/research",
+    label: "Research",
+    description: "Collect ideas, verify facts, and keep the playbook.",
+    tabs: [
+      { href: "/research", label: "Ideas", description: "Capture ideas and score them" },
+      { href: "/research/references", label: "References", description: "Outliers from other creators and what to borrow" },
+      { href: "/research/playbook", label: "Playbook", description: "The rules your scripts follow" },
     ],
   },
   {
-    title: "Create",
-    items: [
-      { href: "/hooks", label: "Hook Lab", icon: "hook" },
-      {
-        href: "/scripts",
-        label: "Scripts",
-        icon: "pen",
-        tabs: [
-          { href: "/scripts", label: "Write", description: "Authority, storytelling, signature series" },
-          { href: "/improve", label: "Improve", description: "Rewrite and tighten any script" },
-          { href: "/library", label: "Library", description: "Ready-made script library" },
-        ],
-      },
-      {
-        href: "/carousels",
-        label: "Carousels",
-        icon: "layers",
-        tabs: [
-          { href: "/carousels", label: "Create", description: "Slide-by-slide carousel builder" },
-          { href: "/carousel-library", label: "Library", description: "Saved and template carousels" },
-        ],
-      },
-      {
-        href: "/production",
-        label: "Production",
-        icon: "camera",
-        tabs: [
-          { href: "/production", label: "Planner", description: "Formats, equipment, shot lists" },
-          { href: "/media", label: "Media Bank", description: "Footage and images, tagged and linked to scripts" },
-        ],
-      },
-      { href: "/prompts", label: "Prompt Library", icon: "terminal" },
+    href: "/scripts",
+    label: "Studio",
+    description: "Write a hook, a script or a carousel.",
+    tabs: [
+      { href: "/scripts", label: "Write", description: "Write a new script" },
+      { href: "/improve", label: "Improve", description: "Diagnose and tighten a saved script" },
+      { href: "/hooks", label: "Hooks", description: "Generate and save hooks" },
+      { href: "/carousels", label: "Carousel", description: "Write a carousel slide by slide" },
     ],
   },
+  { href: "/content", label: "Content", description: "Every script and carousel you have." },
   {
-    title: "Grow",
-    items: [
-      { href: "/publish", label: "Publish", icon: "send" },
-      { href: "/funnel", label: "CTA & Funnel", icon: "funnel" },
-      {
-        href: "/analytics",
-        label: "Analytics",
-        icon: "chart",
-        tabs: [
-          { href: "/analytics", label: "Performance", description: "Logged posts, levels and double-downs" },
-          { href: "/insights", label: "Insights", description: "What's working and what to make next" },
-        ],
-      },
+    href: "/calendar",
+    label: "Calendar",
+    description: "Plan, track to posted, and log how it did.",
+    tabs: [
+      { href: "/calendar", label: "Month", description: "Schedule pieces on dates" },
+      { href: "/pipeline", label: "Week", description: "Move pieces through each status" },
+      { href: "/production", label: "Shoot", description: "Shot lists for a recording session" },
+      { href: "/analytics", label: "Posts", description: "Log how each post performed" },
+      { href: "/insights", label: "Review", description: "What is working across your posts" },
     ],
   },
 ];
 
-export function isItemActive(item: Item, pathname: string) {
-  return item.href === pathname || !!item.tabs?.some((t) => t.href === pathname);
-}
-
-export function findItem(pathname: string) {
-  for (const g of NAV_GROUPS) {
-    const item = g.items.find((i) => isItemActive(i, pathname));
-    if (item) return { group: g, item, tab: item.tabs?.find((t) => t.href === pathname) };
+export function findArea(pathname: string) {
+  for (const area of AREAS) {
+    const tab = area.tabs?.find((t) => t.href === pathname);
+    if (tab || area.href === pathname) return { area, tab: tab ?? null };
   }
   return null;
 }
 
 export const HIDDEN_CHROME = ["/login", "/signup", "/onboarding", "/forgot-password"];
-

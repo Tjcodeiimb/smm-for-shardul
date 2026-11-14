@@ -52,7 +52,7 @@ export default function PipelineBoard({ items }: { items: PipelineItem[] }) {
         </div>
       </div>
 
-      <div data-tour="pipeline-board" className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
         {CALENDAR_STATUSES.map((stage) => {
           const col = visible.filter((c) => c.status === stage);
           return (

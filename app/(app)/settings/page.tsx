@@ -3,19 +3,21 @@ import { requireUserId } from "@/lib/auth";
 import { PageSection, SectionHeader } from "@/app/components/ui";
 import { Icon } from "@/app/components/Icons";
 import SettingsClient, { RemoveKeyButton } from "./SettingsClient";
+import DangerZone from "./DangerZone";
+import { getDangerCounts } from "@/lib/v2";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const userId = await requireUserId();
-  const settings = await getMaskedAiSettings(userId);
+  const [settings, counts] = await Promise.all([getMaskedAiSettings(userId), getDangerCounts(userId)]);
 
   return (
     <div>
       <SectionHeader
         num="14"
         title="Settings"
-        description="Plug in any AI provider's API key -- every Generate button in the app (prompts, improver, bulk import classification) routes through whatever's configured here. Swap providers or rotate a key any time, no redeploy needed."
+        description="Your AI provider, and the danger zone for clearing content."
       />
 
       <PageSection title="AI provider connection">
@@ -37,6 +39,10 @@ export default async function SettingsPage() {
             <RemoveKeyButton hasKey={settings.hasKey} />
           </div>
         </div>
+      </PageSection>
+
+      <PageSection title="Danger zone">
+        <DangerZone counts={counts} />
       </PageSection>
     </div>
   );
