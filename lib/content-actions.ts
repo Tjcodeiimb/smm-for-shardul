@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sql, ensureSchema } from "./db";
 import { requireUserId } from "./auth";
+import { deleteScriptIds, deleteCarouselIds } from "./content-delete";
 
 // Delete for Content (v2 brief, section 6.3). Every query is scoped to the
 // signed-in user. Deleting a script also removes its calendar entries and
@@ -13,23 +14,6 @@ export type DeleteResult = { ok: true; scripts: number; carousels: number; calen
 
 function revalidateAll() {
   for (const p of ["/content", "/calendar", "/pipeline", "/dashboard", "/settings"]) revalidatePath(p);
-}
-
-async function deleteScriptIds(userId: number, ids: number[]) {
-  if (ids.length === 0) return { scripts: 0, calendar: 0 };
-  const cal = await sql`DELETE FROM calendar_items WHERE user_id = ${userId} AND script_id = ANY(${ids}::int[])`;
-  await sql`UPDATE own_posts SET script_id = NULL WHERE user_id = ${userId} AND script_id = ANY(${ids}::int[])`;
-  await sql`UPDATE carousels SET parent_script_id = NULL WHERE user_id = ${userId} AND parent_script_id = ANY(${ids}::int[])`;
-  const del = await sql`DELETE FROM scripts WHERE user_id = ${userId} AND id = ANY(${ids}::int[])`;
-  return { scripts: del.count, calendar: cal.count };
-}
-
-async function deleteCarouselIds(userId: number, ids: number[]) {
-  if (ids.length === 0) return { carousels: 0, calendar: 0 };
-  const cal = await sql`DELETE FROM calendar_items WHERE user_id = ${userId} AND carousel_id = ANY(${ids}::int[])`;
-  await sql`UPDATE own_posts SET carousel_id = NULL WHERE user_id = ${userId} AND carousel_id = ANY(${ids}::int[])`;
-  const del = await sql`DELETE FROM carousels WHERE user_id = ${userId} AND id = ANY(${ids}::int[])`;
-  return { carousels: del.count, calendar: cal.count };
 }
 
 function cleanIds(ids: unknown): number[] {

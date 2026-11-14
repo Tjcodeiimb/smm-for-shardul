@@ -39,11 +39,14 @@ export async function signupAction(_prev: { error?: string } | null, formData: F
   if (!email || !email.includes("@")) return { error: "Enter a valid email." };
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
 
-  const existing = await sql`SELECT id FROM users WHERE email = ${email}`;
-  if (existing.length > 0) return { error: "An account with that email already exists." };
-
   const [{ count }] = await sql<{ count: string }[]>`SELECT COUNT(*)::text AS count FROM users`;
   const isFirstUser = Number(count) === 0;
+  // The app is for one person (v2 brief, open decision 4): signup closes once
+  // the first account exists, unless SIGNUP_OPEN=true. Per-user scoping stays.
+  if (!isFirstUser && process.env.SIGNUP_OPEN !== "true") return { error: "Signup is closed. Ask the owner of this app for access." };
+
+  const existing = await sql`SELECT id FROM users WHERE email = ${email}`;
+  if (existing.length > 0) return { error: "An account with that email already exists." };
 
   const [user] = await sql<{ id: number }[]>`
     INSERT INTO users (email, password_hash) VALUES (${email}, ${hashPassword(password)})
