@@ -81,3 +81,16 @@ export async function getDangerCounts(userId: number): Promise<DangerCounts> {
   return r;
 }
 
+
+// Cadence and earned durations (sections 7.1 and 9.2), stored per user.
+export async function getV2Settings(userId: number): Promise<import("./posts").V2Settings> {
+  const { DEFAULT_V2_SETTINGS } = await import("./posts");
+  await ensureSchema();
+  const [row] = await sql<{ value: string }[]>`SELECT value FROM brand_config WHERE key = 'v2_settings' AND user_id = ${userId}`;
+  if (!row) return DEFAULT_V2_SETTINGS;
+  try {
+    return { ...DEFAULT_V2_SETTINGS, ...JSON.parse(row.value) };
+  } catch {
+    return DEFAULT_V2_SETTINGS;
+  }
+}

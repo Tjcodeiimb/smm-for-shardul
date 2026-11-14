@@ -1,6 +1,6 @@
 import { sql } from "@/lib/db";
 import { requireUserId } from "@/lib/auth";
-import { ensureV2Seed } from "@/lib/v2";
+import { ensureV2Seed, getV2Settings } from "@/lib/v2";
 import type { Beat } from "@/lib/script-format";
 import type { Fact } from "@/lib/checks";
 import type { Lesson, Rule, PlaybookCard, ReferenceScript } from "@/lib/studio-prompts";
@@ -33,8 +33,9 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
   const carouselId = Number(sp.carousel) || null;
   const ideaId = Number(sp.idea) || null;
   const fromScript = Number(sp.fromScript) || null;
+  const like = Number(sp.like) || null;
 
-  const [rules, lessons, cards, refs, briefs, titles] = await Promise.all([
+  const [rules, lessons, cards, refs, briefs, titles, v2] = await Promise.all([
     sql<Rule[]>`SELECT id, text, category, active FROM rules WHERE user_id = ${userId} ORDER BY position, id`,
     sql<Lesson[]>`SELECT id, text, scope, applies_to, status, created_at::text FROM lessons WHERE user_id = ${userId} AND status <> 'retired' ORDER BY created_at DESC`,
     sql<PlaybookCard[]>`SELECT key, title, body, steps FROM playbook_cards WHERE user_id = ${userId} AND use_in_prompts ORDER BY position, id`,
@@ -43,6 +44,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
     sql<{ id: number; question: string; facts: Fact[]; do_not_say: string }[]>`SELECT id, question, facts, do_not_say FROM briefs WHERE user_id = ${userId} ORDER BY created_at DESC`,
     sql<{ title: string; id: number; kind: string }[]>`
       SELECT title, id, 's' AS kind FROM scripts WHERE user_id = ${userId} UNION ALL SELECT title, id, 'c' AS kind FROM carousels WHERE user_id = ${userId}`,
+    getV2Settings(userId),
   ]);
 
   const references: ReferenceScript[] = refs.map((r) => ({ id: r.id, title: r.title, duration: r.duration_s ?? 20, type: r.type ?? "", text: r.body_black }));
@@ -92,6 +94,11 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
           parentScriptId: s.id, slides: [], idea: s.one_idea || s.body_black.split("\n").slice(-1)[0] || "", hook: s.hook_text || s.title },
       };
     }
+  } else if (like) {
+    // "Make another like this" (section 7.4): same layers and hook formula, new idea, tagged as a follow-up.
+    const [s] = await sql<{ id: number; title: string; duration_s: number | null; type: string | null; funnel_stage: string; hook_formula: string; template: string }[]>`
+      SELECT id, title, duration_s, type, funnel_stage, hook_formula, template FROM scripts WHERE id = ${like} AND user_id = ${userId}`;
+    if (s) initial = { format: "reel", mode: "new", like: { id: s.id, title: s.title, duration: s.duration_s ?? 20, type: s.type ?? "whiteboard", funnel: s.funnel_stage || "tofu", hookFormula: s.hook_formula, template: s.template } };
   } else if (ideaId) {
     const [i] = await sql<{ id: number; text: string; suggested_type: string; brief_id: number | null }[]>`
       SELECT id, text, suggested_type, brief_id FROM ideas WHERE id = ${ideaId} AND user_id = ${userId}`;
@@ -110,6 +117,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
       cards={cards}
       references={references}
       briefs={briefOptions}
+      earned={v2.earned}
       existing={titles.filter((t) => !(t.kind === "s" && t.id === id) && !(t.kind === "c" && t.id === carouselId)).map((t) => t.title)}
     />
   );

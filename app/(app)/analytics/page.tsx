@@ -1,132 +1,37 @@
 import { sql } from "@/lib/db";
-import { getBrand } from "@/lib/brand";
 import { requireUserId } from "@/lib/auth";
-import { createOwnPost, deleteOwnPost } from "@/lib/actions";
-import { Card, SectionHeader, Badge, DeleteForm, Stat } from "@/app/components/ui";
-import DoubleDownClient from "./DoubleDownClient";
-
-type Post = {
-  id: number;
-  title: string;
-  posted_date: string;
-  views: number;
-  followers_at_post: number;
-  pillar: string;
-  notes: string;
-};
+import { SectionHeader } from "@/app/components/ui";
+import type { Snapshot, PostNotes } from "@/lib/posts";
+import PostsClient, { type PostRow, type Unlogged } from "./PostsClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function AnalyticsPage() {
+// Calendar > Posts: the post log (v2 brief, section 7.3).
+export default async function PostsPage() {
   const userId = await requireUserId();
-  const [brand, posts] = await Promise.all([
-    getBrand(userId),
-    sql<Post[]>`SELECT * FROM own_posts WHERE user_id = ${userId} ORDER BY posted_date DESC`,
+  const [posts, unlogged] = await Promise.all([
+    sql<{ id: number; title: string; posted_date: string; reel_url: string; video_length: string | null; snapshots: Snapshot[]; where_left: string;
+      log_notes: PostNotes; views: number; script_id: number | null; duration_s: number | null; type: string | null; funnel_stage: string | null;
+      hook_formula: string | null }[]>`
+      SELECT p.id, p.title, p.posted_date, p.reel_url, p.video_length::text, p.snapshots, p.where_left, p.log_notes, p.views, p.script_id,
+        s.duration_s, s.type, s.funnel_stage, s.hook_formula
+      FROM own_posts p LEFT JOIN scripts s ON s.id = p.script_id AND s.user_id = p.user_id
+      WHERE p.user_id = ${userId} ORDER BY p.posted_date DESC, p.id DESC`,
+    sql<Unlogged[]>`
+      SELECT c.id, c.date, c.topic, c.status FROM calendar_items c
+      WHERE c.user_id = ${userId} AND c.status IN ('edited', 'posted')
+        AND NOT EXISTS (SELECT 1 FROM own_posts p WHERE p.calendar_item_id = c.id)
+      ORDER BY c.date DESC LIMIT 30`,
   ]);
-
-  const withMultiple = posts.map((p) => ({
-    ...p,
-    multiple: p.followers_at_post > 0 ? p.views / p.followers_at_post : 0,
+  const rows: PostRow[] = posts.map((p) => ({
+    id: p.id, title: p.title, date: p.posted_date, url: p.reel_url, videoLength: p.video_length ? Number(p.video_length) : null,
+    snapshots: p.snapshots ?? [], whereLeft: p.where_left, notes: p.log_notes ?? {}, legacyViews: p.views, scriptId: p.script_id,
+    layers: { duration: p.duration_s, type: p.type, funnel: p.funnel_stage, hookFormula: p.hook_formula },
   }));
-  const top5 = [...withMultiple].sort((a, b) => b.views - a.views).slice(0, 5);
-  const bottom5 = [...withMultiple].sort((a, b) => a.views - b.views).slice(0, 5);
-
-  const inputClass = "w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-2.5";
-  const totalViews = posts.reduce((t, p) => t + p.views, 0);
-  const viewsPerPost = posts.length ? Math.round(totalViews / posts.length) : 0;
-
   return (
     <div>
-      <SectionHeader num="09" title="Analytics & Level Tracker" description="Track what actually worked, and double down on it deliberately." />
-
-      <div className="stagger grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-        <Stat label="Posts logged" value={posts.length.toLocaleString()} />
-        <Stat label="Total views" value={totalViews.toLocaleString()} />
-        <Stat label="Views / post" value={viewsPerPost.toLocaleString()} />
-      </div>
-
-      <Card className="mb-8">
-        <h3 className="font-heading text-xl mb-4">Log a posted video</h3>
-        <form action={createOwnPost} className="grid md:grid-cols-3 gap-3">
-          <input name="title" placeholder="Title / topic" className={`${inputClass} md:col-span-2`} />
-          <input required type="date" name="posted_date" className={inputClass} />
-          <input type="number" name="views" placeholder="Views" className={inputClass} />
-          <input type="number" name="followers_at_post" placeholder="Followers at time of post" className={inputClass} />
-          <select name="pillar" className={inputClass} defaultValue="authority">
-            <option value="authority">Authority</option>
-            <option value="journey">Journey</option>
-          </select>
-          <input name="notes" placeholder="Notes" className={`${inputClass} md:col-span-3`} />
-          <div className="md:col-span-3">
-            <button className="rounded-full bg-accent text-accent-deep text-sm font-medium px-4 py-2">Log post</button>
-          </div>
-        </form>
-      </Card>
-
-      <div className="stagger grid md:grid-cols-2 gap-4 mb-8">
-        <Card>
-          <h3 className="font-heading text-xl mb-3">Top 5 by views</h3>
-          {top5.length === 0 ? (
-            <p className="text-sm text-muted">No posts logged yet.</p>
-          ) : (
-            <ul className="space-y-2 text-sm">
-              {top5.map((p) => (
-                <li key={p.id} className="flex items-center justify-between">
-                  <span>{p.title || `Post #${p.id}`}</span>
-                  <span className="flex gap-2">
-                    <Badge>{p.views.toLocaleString()} views</Badge>
-                    {p.multiple >= 5 && <Badge tone="accent">{p.multiple.toFixed(1)}x</Badge>}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-        <Card>
-          <h3 className="font-heading text-xl mb-3">Bottom 5 by views</h3>
-          {bottom5.length === 0 ? (
-            <p className="text-sm text-muted">No posts logged yet.</p>
-          ) : (
-            <ul className="space-y-2 text-sm">
-              {bottom5.map((p) => (
-                <li key={p.id} className="flex items-center justify-between">
-                  <span>{p.title || `Post #${p.id}`}</span>
-                  <Badge>{p.views.toLocaleString()} views</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      <Card className="mb-8">
-        <h3 className="font-heading text-xl mb-3">Double-down generator</h3>
-        <p className="text-xs text-muted mb-3">Pick a post that outperformed your average and get 3 remix variants (A/B/C).</p>
-        <DoubleDownClient brand={brand} posts={posts.map((p) => ({ id: p.id, title: p.title, views: p.views, followers_at_post: p.followers_at_post }))} />
-      </Card>
-
-      <Card>
-        <h3 className="font-heading text-xl mb-4">All logged posts ({posts.length})</h3>
-        {posts.length === 0 ? (
-          <p className="text-sm text-muted">Nothing logged yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {withMultiple.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-lg border border-border/10 p-3 text-sm">
-                <span>
-                  <span className="text-muted mr-3">{p.posted_date}</span>
-                  {p.title || `Post #${p.id}`}
-                </span>
-                <span className="flex items-center gap-2">
-                  <Badge>{p.views.toLocaleString()} views</Badge>
-                  {p.multiple >= 5 && <Badge tone="accent">{p.multiple.toFixed(1)}x outlier</Badge>}
-                  <DeleteForm action={deleteOwnPost} id={p.id} />
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+      <SectionHeader num="PL" title="Posts" description="Log each post's numbers at 48 hours and again at 7 days, and write what you noticed. Lessons you save here shape every future script." />
+      <PostsClient posts={rows} unlogged={unlogged} today={new Date().toISOString().slice(0, 10)} />
     </div>
   );
 }

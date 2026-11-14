@@ -248,6 +248,14 @@ async function initSchema() {
     ALTER TABLE own_posts ADD COLUMN IF NOT EXISTS carousel_id INTEGER;
     ALTER TABLE outlier_research ADD COLUMN IF NOT EXISTS principle TEXT NOT NULL DEFAULT '';
 
+    -- v2 Phase 3: the post log (section 7.3)
+    ALTER TABLE own_posts ADD COLUMN IF NOT EXISTS calendar_item_id INTEGER;
+    ALTER TABLE own_posts ADD COLUMN IF NOT EXISTS reel_url TEXT NOT NULL DEFAULT '';
+    ALTER TABLE own_posts ADD COLUMN IF NOT EXISTS video_length NUMERIC;
+    ALTER TABLE own_posts ADD COLUMN IF NOT EXISTS snapshots JSONB NOT NULL DEFAULT '[]';
+    ALTER TABLE own_posts ADD COLUMN IF NOT EXISTS where_left TEXT NOT NULL DEFAULT '';
+    ALTER TABLE own_posts ADD COLUMN IF NOT EXISTS log_notes JSONB NOT NULL DEFAULT '{}';
+
     CREATE TABLE IF NOT EXISTS script_versions (
       id SERIAL PRIMARY KEY,
       script_id INTEGER NOT NULL REFERENCES scripts(id) ON DELETE CASCADE,

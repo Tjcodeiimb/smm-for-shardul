@@ -41,8 +41,10 @@ export default async function HomePage() {
       SELECT c.id, c.date, c.topic FROM calendar_items c
       WHERE c.user_id = ${userId} AND c.status = 'posted' AND c.date >= ${isoDay(twoWeeksAgo)}
         AND NOT EXISTS (
-          SELECT 1 FROM own_posts p WHERE p.user_id = ${userId}
-            AND ((c.script_id IS NOT NULL AND p.script_id = c.script_id) OR (c.carousel_id IS NOT NULL AND p.carousel_id = c.carousel_id))
+          SELECT 1 FROM own_posts p WHERE p.user_id = ${userId} AND jsonb_array_length(p.snapshots) > 0
+            AND (p.calendar_item_id = c.id
+              OR (c.script_id IS NOT NULL AND p.script_id = c.script_id)
+              OR (c.carousel_id IS NOT NULL AND p.carousel_id = c.carousel_id))
         )
       ORDER BY c.date DESC LIMIT 6`,
   ]);

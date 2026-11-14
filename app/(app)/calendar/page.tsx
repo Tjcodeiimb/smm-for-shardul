@@ -4,6 +4,8 @@ import { FILMING_FORMATS, CTA_TYPES, FUNNEL_STAGES, CALENDAR_STATUSES, CONCEPT_B
 import { createCalendarItem } from "@/lib/actions";
 import { Card, SectionHeader, PageSection } from "@/app/components/ui";
 import CalendarClient, { type CalendarItem, type PickerScript } from "./CalendarClient";
+import { getV2Settings } from "@/lib/v2";
+import { durationLabel, typeLabel } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +14,35 @@ export const dynamic = "force-dynamic";
 // danger zone are gone (clearing the calendar now lives in Settings).
 export default async function CalendarPage() {
   const userId = await requireUserId();
-  const [items, scripts] = await Promise.all([
+  const [items, scripts, v2, layered] = await Promise.all([
     sql<CalendarItem[]>`SELECT * FROM calendar_items WHERE user_id = ${userId} ORDER BY date ASC`,
     sql<PickerScript[]>`SELECT id, title, funnel_stage, topic_tag, effort FROM scripts WHERE user_id = ${userId} ORDER BY title ASC`,
+    getV2Settings(userId),
+    sql<{ date: string; topic: string; status: string; type: string | null; duration_s: number | null }[]>`
+      SELECT c.date, c.topic, c.status, s.type, s.duration_s FROM calendar_items c
+      LEFT JOIN scripts s ON s.id = c.script_id AND s.user_id = c.user_id
+      WHERE c.user_id = ${userId} ORDER BY c.date ASC, c.id ASC`,
   ]);
+
+  // Section 7.1: "this week" and "overdue", plus gentle warnings (never blocks).
+  const today = new Date().toISOString().slice(0, 10);
+  const weekOf = (d: string) => {
+    const x = new Date(`${d}T00:00:00Z`);
+    x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7));
+    return x.toISOString().slice(0, 10);
+  };
+  const thisWeek = layered.filter((i) => weekOf(i.date) === weekOf(today)).length;
+  const overdue = layered.filter((i) => i.date < today && !["posted", "reviewed"].includes(i.status)).length;
+  const upcoming = layered.filter((i) => i.date >= today && !["posted", "reviewed"].includes(i.status));
+  const warnings: string[] = [];
+  upcoming.forEach((i, k) => {
+    const prev = upcoming[k - 1];
+    if (prev && i.type && prev.type === i.type) warnings.push(`${prev.date} and ${i.date}: two ${typeLabel(i.type)} pieces in a row.`);
+    if (i.duration_s && !v2.earned.includes(i.duration_s)) warnings.push(`${i.date}: “${i.topic}” is ${durationLabel(i.duration_s)}, which isn't marked as earned yet.`);
+  });
+  const perWeek = new Map<string, number>();
+  upcoming.forEach((i) => perWeek.set(weekOf(i.date), (perWeek.get(weekOf(i.date)) ?? 0) + 1));
+  for (const [w, n] of perWeek) if (v2.perWeek && n > v2.perWeek) warnings.push(`Week of ${w}: ${n} pieces, more than your target of ${v2.perWeek}.`);
 
   const selectClass = "w-full rounded-lg border border-border/15 bg-surface text-foreground text-sm p-2.5";
   const inputClass = selectClass;
@@ -36,6 +63,15 @@ export default async function CalendarPage() {
           </a>
         }
       >
+        <div className="mb-4 flex flex-wrap gap-3 text-sm">
+          <span className="rounded-full bg-card px-4 py-2">This week: <span className="font-medium">{thisWeek}</span> (target {v2.perWeek}{v2.days.length ? `, ${v2.days.join(" / ")}` : ""}{v2.time ? `, ${v2.time}` : ""})</span>
+          <span className={`rounded-full px-4 py-2 ${overdue ? "bg-red-700/10 text-red-700" : "bg-card"}`}>Overdue: <span className="font-medium">{overdue}</span></span>
+        </div>
+        {warnings.length > 0 && (
+          <ul className="mb-4 space-y-1 rounded-[22px] bg-card p-4 text-sm text-muted" data-testid="calendar-warnings">
+            {warnings.slice(0, 8).map((w) => <li key={w}>· {w}</li>)}
+          </ul>
+        )}
         <CalendarClient items={items} scripts={scripts} />
       </PageSection>
 

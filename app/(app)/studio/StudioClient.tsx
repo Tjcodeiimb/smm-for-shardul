@@ -13,6 +13,8 @@ import {
   buildStepPrompt, buildLinePrompt, buildScriptToolPrompt, buildClaudeBrief, extractFinal, parseOptions,
   type Lesson, type Rule, type PlaybookCard, type ReferenceScript, type PromptContext,
 } from "@/lib/studio-prompts";
+import PromptBar, { generate } from "@/app/components/PromptBar";
+import { saveRuleAction } from "@/lib/loop-actions";
 import { saveStudioScriptAction, saveStudioCarouselAction, listVersionsAction, type VersionRow } from "@/lib/studio-actions";
 
 export type BriefOption = { id: number; question: string; facts: Fact[]; doNotSay: string };
@@ -28,6 +30,7 @@ export type StudioInitial = {
   script?: ScriptInit;
   carousel?: { id: number | null; title: string; type: string; funnel: string; archetype: string; parentScriptId: number | null; slides: Slide[]; idea?: string; hook?: string };
   fromIdea?: { id: number; text: string; type: string; briefId: number | null };
+  like?: { id: number; title: string; duration: number; type: string; funnel: string; hookFormula: string; template: string };
 };
 
 const HOOK_FORMULAS = [
@@ -47,56 +50,6 @@ const primary = "rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-acc
 const field = "w-full border bg-surface px-3 py-2 text-sm";
 const select = "rounded-full border bg-surface px-3.5 py-2 text-sm";
 
-async function generate(prompt: string): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
-  try {
-    const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
-    const data = await res.json();
-    if (data.text) return { ok: true, text: data.text };
-    return { ok: false, message: data.error === "no_key" || data.error === "no_api_key" || /key/i.test(data.message ?? "") ? "No AI provider is connected. Use Copy prompt, then paste the answer below." : data.message || "Generation failed." };
-  } catch {
-    return { ok: false, message: "Generation failed. Use Copy prompt instead." };
-  }
-}
-
-// One generated step: Show prompt, Generate, Copy prompt, and a box where
-// the answer lands (or where you paste an answer from any chatbot).
-function PromptBar({ prompt, onResult, label = "Generate", applyLabel = "Use this answer" }: { prompt: string; onResult: (text: string) => void; label?: string; applyLabel?: string }) {
-  const [show, setShow] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [pasted, setPasted] = useState("");
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="mt-3">
-      <div className="flex flex-wrap gap-2">
-        <button className={btn} onClick={() => setShow((s) => !s)}>{show ? "Hide prompt" : "Show prompt"}</button>
-        <button
-          className={primary}
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true); setMsg("");
-            const r = await generate(prompt);
-            setBusy(false);
-            if (r.ok) onResult(r.text); else setMsg(r.message);
-          }}
-        >
-          {busy ? "Generating…" : label}
-        </button>
-        <button className={btn} onClick={async () => { await navigator.clipboard.writeText(prompt); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
-          {copied ? "Copied" : "Copy prompt"}
-        </button>
-      </div>
-      {msg && <p className="mt-2 text-sm text-red-700">{msg}</p>}
-      {show && <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-[14px] bg-surface p-4 text-xs">{prompt}</pre>}
-      <details className="mt-2">
-        <summary className="cursor-pointer text-xs text-muted">Paste an answer from a chat</summary>
-        <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={4} className={`${field} mt-2 font-mono text-xs`} aria-label="Pasted answer" />
-        <button className={`${btn} mt-2`} disabled={!pasted.trim()} onClick={() => { onResult(pasted); setPasted(""); }}>{applyLabel}</button>
-      </details>
-    </div>
-  );
-}
-
 function Step({ n, title, hint, children, defaultOpen = false }: { n: number | string; title: string; hint?: string; children: React.ReactNode; defaultOpen?: boolean }) {
   return (
     <details open={defaultOpen} className="group rounded-[28px] bg-card">
@@ -111,19 +64,20 @@ function Step({ n, title, hint, children, defaultOpen = false }: { n: number | s
 }
 
 export default function StudioClient({
-  initial, rules, lessons, cards, references, briefs, existing,
+  initial, rules, lessons, cards, references, briefs, existing, earned,
 }: {
-  initial: StudioInitial; rules: Rule[]; lessons: Lesson[]; cards: PlaybookCard[]; references: ReferenceScript[]; briefs: BriefOption[]; existing: string[];
+  initial: StudioInitial; rules: Rule[]; lessons: Lesson[]; cards: PlaybookCard[]; references: ReferenceScript[]; briefs: BriefOption[]; existing: string[]; earned: number[];
 }) {
   const router = useRouter();
   const s = initial.script;
   const c = initial.carousel;
   const [format, setFormat] = useState<"reel" | "carousel">(initial.format);
   const [mode, setMode] = useState(initial.mode);
-  const [duration, setDuration] = useState<number>(s?.duration ?? 20);
-  const [type, setType] = useState(s?.type ?? c?.type ?? initial.fromIdea?.type ?? "whiteboard");
-  const [funnel, setFunnel] = useState(s?.funnel ?? c?.funnel ?? "tofu");
-  const [template, setTemplate] = useState(s?.template ?? "");
+  const lk = initial.like;
+  const [duration, setDuration] = useState<number>(s?.duration ?? lk?.duration ?? 20);
+  const [type, setType] = useState(s?.type ?? c?.type ?? lk?.type ?? initial.fromIdea?.type ?? "whiteboard");
+  const [funnel, setFunnel] = useState(s?.funnel ?? c?.funnel ?? lk?.funnel ?? "tofu");
+  const [template, setTemplate] = useState(s?.template ?? lk?.template ?? "");
   const [title, setTitle] = useState(s?.title ?? c?.title ?? "");
   const [idea, setIdea] = useState(s?.idea ?? c?.idea ?? initial.fromIdea?.text ?? "");
   const [briefId, setBriefId] = useState<number | null>(s?.briefId ?? initial.fromIdea?.briefId ?? null);
@@ -131,7 +85,7 @@ export default function StudioClient({
   const [angle, setAngle] = useState(s?.angle ?? "");
   const [hookOut, setHookOut] = useState("");
   const [hook, setHook] = useState(s?.hook ?? c?.hook ?? "");
-  const [hookFormula, setHookFormula] = useState(s?.hookFormula ?? "");
+  const [hookFormula, setHookFormula] = useState(s?.hookFormula ?? lk?.hookFormula ?? "");
   const [hookFollow, setHookFollow] = useState(s?.hookFollow ?? "");
   const [pick, setPick] = useState<number[]>([0, 0, 0, 0, 0]);
   const [skeleton, setSkeleton] = useState(s?.skeleton ?? "");
@@ -142,8 +96,11 @@ export default function StudioClient({
   const [delivery, setDelivery] = useState(s?.delivery ?? "");
   const [ticks, setTicks] = useState<Record<string, boolean>>(s?.ticks ?? {});
   const [scriptId, setScriptId] = useState<number | null>(s?.id ?? null);
-  const [parentId, setParentId] = useState<number | null>(s?.parentId ?? null);
-  const [variantKind, setVariantKind] = useState(s?.variantKind ?? "");
+  const [parentId, setParentId] = useState<number | null>(s?.parentId ?? lk?.id ?? null);
+  const [variantKind, setVariantKind] = useState(s?.variantKind ?? (lk ? "follow_up" : ""));
+  const [generated, setGenerated] = useState<Set<string>>(new Set());
+  const [ruleAsk, setRuleAsk] = useState<null | { why: string }>(null);
+  const [ruleText, setRuleText] = useState("");
   const [resizeTo, setResizeTo] = useState<number>(30);
   const [paste, setPaste] = useState("");
   const [archetype, setArchetype] = useState(c?.archetype ?? "single_concept");
@@ -178,6 +135,13 @@ export default function StudioClient({
     if (scriptId) listVersionsAction(scriptId).then(setVersions);
   }, [scriptId]);
 
+  // "Remember this as a rule?" (section 10.1): offered when a generated line
+  // is rewritten by hand or a set of options is rejected.
+  function noticeRewrite(i: number, next: string) {
+    const prev = beats[i]?.say ?? "";
+    if (!ruleAsk && generated.has(prev) && next !== prev) setRuleAsk({ why: "You rewrote a generated line." });
+  }
+
   function setBeat(i: number, patch: Partial<Beat>) {
     setBeats((bs) => bs.map((b, j) => (j === i ? { ...b, ...patch } : b)));
   }
@@ -186,6 +150,7 @@ export default function StudioClient({
     const parsed = parseScript(extractFinal(text));
     if (!parsed.beats.length) { setToolNote("Couldn't find any lines in that answer."); return; }
     setBeats((prev) => (opts.keepLocks ? enforceLocks(prev, parsed.beats) : parsed.beats));
+    setGenerated(new Set(parsed.beats.map((b) => b.say)));
     if (parsed.title && !title) setTitle(parsed.title);
     setToolNote(text.includes("=== FINAL SCRIPT ===") ? text.slice(0, text.indexOf("=== FINAL SCRIPT ===")).trim().split("\n").filter((l) => l.startsWith("- ")).join("\n") : "");
   }
@@ -265,6 +230,10 @@ export default function StudioClient({
         </div>
       </div>
 
+      {format === "reel" && !earned.includes(duration) && (
+        <p className="mb-3 text-sm text-muted" data-testid="unearned">{durationLabel(duration)} isn&apos;t marked as earned yet (Settings). Short first: 20 to 35 s until your numbers earn longer.</p>
+      )}
+      {lk && !scriptId && <p className="mb-3 text-sm text-muted">Another like “{lk.title}”: same layers and hook formula, tagged as a follow-up.</p>}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (the hook works)" aria-label="Title" className="min-w-0 flex-1 bg-transparent font-heading text-3xl outline-none md:text-[40px]" />
         {format === "reel" && (
@@ -399,14 +368,14 @@ export default function StudioClient({
                       <OptionsButton disabled={b.locked || !b.say.trim()} prompt={buildLinePrompt("options", ctx, i)} onResult={(items) => setOptions({ line: i, items })} />
                       <button className="text-muted hover:text-red-700" disabled={b.locked} onClick={() => setBeats((bs) => bs.filter((_, j) => j !== i))} aria-label="Remove beat">✕</button>
                     </div>
-                    <textarea value={b.say} readOnly={b.locked} onChange={(e) => setBeat(i, { say: e.target.value })} rows={2} aria-label="Say" placeholder="Say" className={`${field} ${b.locked ? "opacity-80" : ""}`} />
+                    <textarea value={b.say} readOnly={b.locked} onChange={(e) => { noticeRewrite(i, e.target.value); setBeat(i, { say: e.target.value }); }} rows={2} aria-label="Say" placeholder="Say" className={`${field} ${b.locked ? "opacity-80" : ""}`} />
                     <div className="mt-1.5 grid gap-1.5 md:grid-cols-2">
                       <input value={b.board} readOnly={b.locked} onChange={(e) => setBeat(i, { board: e.target.value })} aria-label="Board" placeholder="Board: hands and whiteboard, e.g. [WB: …]" className={`${field} text-xs`} />
                       <input value={b.screen} readOnly={b.locked} onChange={(e) => setBeat(i, { screen: e.target.value })} aria-label="Screen" placeholder="Screen: edit and sound, e.g. [CARD: …]" className={`${field} text-xs`} />
                     </div>
                     {options?.line === i && (
                       <div className="mt-2 rounded-[14px] bg-card p-3" data-testid="options">
-                        <div className="mb-1 flex items-center text-xs font-medium">Options for this line <button className="ml-auto text-muted" onClick={() => setOptions(null)}>Close</button></div>
+                        <div className="mb-1 flex items-center text-xs font-medium">Options for this line <button className="ml-auto text-muted" onClick={() => { setOptions(null); if (!ruleAsk) setRuleAsk({ why: "You closed the options without using one." }); }}>None of these</button></div>
                         {options.items.map((o, k) => (
                           <button key={k} onClick={() => { setBeat(i, { say: o.text }); setOptions(null); }} className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-surface">
                             {k === 0 && <span className="mr-1 rounded-full bg-accent px-1.5 text-[10px] text-accent-deep">recommended</span>}
@@ -449,6 +418,16 @@ export default function StudioClient({
                   <PromptBar prompt={buildScriptToolPrompt("tighten", ctx)} onResult={(t) => applyScriptText(t, { keepLocks: true })} label="Tighten" />
                 </div>
               </div>
+              {ruleAsk && (
+                <div className="mt-4 rounded-[18px] border border-accent bg-accent/10 p-4 text-sm" data-testid="remember-rule">
+                  <div>{ruleAsk.why} Remember this as a rule?</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <input value={ruleText} onChange={(e) => setRuleText(e.target.value)} placeholder="e.g. Keep my wording; offer options instead of rewriting." aria-label="Rule" className={`${field} min-w-0 flex-1`} />
+                    <button className={primary} disabled={!ruleText.trim()} onClick={async () => { await saveRuleAction({ id: null, text: ruleText, category: "writing", active: true }); setRuleText(""); setRuleAsk(null); setStatus("Saved as a rule. It goes into every prompt from now on."); router.refresh(); }}>Remember</button>
+                    <button className={btn} onClick={() => setRuleAsk(null)}>Not now</button>
+                  </div>
+                </div>
+              )}
               {toolNote && <pre className="mt-3 whitespace-pre-wrap rounded-[14px] bg-surface p-3 text-xs">{toolNote}</pre>}
             </Step>
           </>
