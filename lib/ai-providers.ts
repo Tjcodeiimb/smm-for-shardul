@@ -1,4 +1,5 @@
 import { sql, ensureSchema } from "./db";
+import { encrypt, decrypt, isEncrypted } from "./secret-box";
 
 // Plug-and-play AI provider layer: one settings row (provider + API key +
 // optional model/endpoint override) drives every generation call in the
@@ -34,14 +35,20 @@ const EMPTY_SETTINGS: AiSettings = { provider: "gemini", apiKey: "", model: "", 
 export async function getAiSettings(userId: number): Promise<AiSettings> {
   await ensureSchema();
   const rows = await sql<
-    { provider: string; api_key: string; model: string; custom_endpoint: string }[]
-  >`SELECT provider, api_key, model, custom_endpoint FROM ai_settings WHERE user_id = ${userId} ORDER BY id ASC LIMIT 1`;
+    { id: number; provider: string; api_key: string; model: string; custom_endpoint: string }[]
+  >`SELECT id, provider, api_key, model, custom_endpoint FROM ai_settings WHERE user_id = ${userId} ORDER BY id ASC LIMIT 1`;
   if (rows.length === 0) return EMPTY_SETTINGS;
   const row = rows[0];
+  // Keys are encrypted at rest. A legacy plaintext key is encrypted in place
+  // the first time it is read; one that can't be decrypted reads as unset.
+  const apiKey = decrypt(row.api_key) ?? "";
+  if (row.api_key && !isEncrypted(row.api_key)) {
+    await sql`UPDATE ai_settings SET api_key = ${encrypt(row.api_key)} WHERE id = ${row.id}`;
+  }
   const provider = (AI_PROVIDERS as readonly string[]).includes(row.provider)
     ? (row.provider as AiProvider)
     : "gemini";
-  return { provider, apiKey: row.api_key, model: row.model, customEndpoint: row.custom_endpoint };
+  return { provider, apiKey, model: row.model, customEndpoint: row.custom_endpoint };
 }
 
 // For display on the Settings page -- never send the real key back to the
@@ -69,14 +76,14 @@ export async function saveAiSettings(userId: number, settings: AiSettings): Prom
   if (existing.length > 0) {
     await sql`
       UPDATE ai_settings
-      SET provider = ${settings.provider}, api_key = ${settings.apiKey}, model = ${settings.model},
+      SET provider = ${settings.provider}, api_key = ${encrypt(settings.apiKey)}, model = ${settings.model},
           custom_endpoint = ${settings.customEndpoint}, updated_at = now()
       WHERE id = ${existing[0].id}
     `;
   } else {
     await sql`
       INSERT INTO ai_settings (provider, api_key, model, custom_endpoint, user_id)
-      VALUES (${settings.provider}, ${settings.apiKey}, ${settings.model}, ${settings.customEndpoint}, ${userId})
+      VALUES (${settings.provider}, ${encrypt(settings.apiKey)}, ${settings.model}, ${settings.customEndpoint}, ${userId})
     `;
   }
 }

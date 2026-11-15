@@ -6,34 +6,21 @@ import "@fontsource/geist/700.css";
 import "../globals.css";
 import { sql } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth";
-import { getBrand } from "@/lib/brand";
-import Nav from "@/app/components/Nav";
-import Topbar from "@/app/components/Topbar";
-import HelpBubble from "@/app/components/HelpBubble";
+import AppNav from "@/app/components/AppNav";
 import SectionTabs from "@/app/components/SectionTabs";
-import { TourProvider } from "@/app/components/Tour";
 
 export const metadata: Metadata = {
   title: "Upcreate",
-  description: "The Instagram/short-form content operating system: calendar, hooks, scripts, research, and prompts, all in one place.",
+  description: "Research, write, plan and learn from short videos: Research, Studio, Content and Calendar.",
 };
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  // Pages under this group that require auth already call requireUserId()
-  // themselves (and proxy.ts gates them at the edge); this just needs
-  // best-effort identity for the chrome (brand name, account email) and
-  // renders fine with blanks when signed out (login/signup/onboarding).
+  // Pages that need auth call requireUserId() themselves (and proxy.ts gates
+  // them); this only needs best-effort identity for the account menu.
   const userId = await getCurrentUserId();
-  let brandName = "";
-  let brandHandle = "";
   let userEmail = "";
   if (userId !== null) {
-    const [brand, [user]] = await Promise.all([
-      getBrand(userId),
-      sql<{ email: string }[]>`SELECT email FROM users WHERE id = ${userId}`,
-    ]);
-    brandName = brand.nameField || brand.handle;
-    brandHandle = brand.handle;
+    const [user] = await sql<{ email: string }[]>`SELECT email FROM users WHERE id = ${userId}`;
     userEmail = user?.email ?? "";
   }
 
@@ -46,18 +33,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col md:flex-row bg-background text-foreground">
-        <TourProvider>
-          <Nav brandName={brandName} brandHandle={brandHandle} />
-          <div className="flex-1 min-w-0 flex flex-col">
-            <Topbar userEmail={userEmail} />
-            <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8 md:px-10 md:py-10">
-              <SectionTabs />
-              {children}
-            </main>
-          </div>
-          <HelpBubble />
-        </TourProvider>
+      <body className="min-h-full flex flex-col bg-background text-foreground">
+        <AppNav userEmail={userEmail} />
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 pt-8 pb-28 md:px-10 md:py-10">
+          <SectionTabs />
+          {children}
+        </main>
       </body>
     </html>
   );

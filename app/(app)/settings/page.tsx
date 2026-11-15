@@ -3,20 +3,43 @@ import { requireUserId } from "@/lib/auth";
 import { PageSection, SectionHeader } from "@/app/components/ui";
 import { Icon } from "@/app/components/Icons";
 import SettingsClient, { RemoveKeyButton } from "./SettingsClient";
+import DangerZone from "./DangerZone";
+import { getDangerCounts, getV2Settings, ensureV2Seed } from "@/lib/v2";
+import { sql } from "@/lib/db";
+import { RulesSection, LessonsSection, CadenceSection, type RuleRow, type LessonRow } from "./LoopSettings";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const userId = await requireUserId();
-  const settings = await getMaskedAiSettings(userId);
+  await ensureV2Seed(userId);
+  const [settings, counts, rules, lessons, v2] = await Promise.all([
+    getMaskedAiSettings(userId),
+    getDangerCounts(userId),
+    sql<RuleRow[]>`SELECT id, text, category, active FROM rules WHERE user_id = ${userId} ORDER BY position, id`,
+    sql<LessonRow[]>`SELECT id, text, scope, applies_to, evidence, evidence_post_ids, status FROM lessons WHERE user_id = ${userId} ORDER BY (status = 'retired'), created_at DESC`,
+    getV2Settings(userId),
+  ]);
 
   return (
     <div>
       <SectionHeader
         num="14"
         title="Settings"
-        description="Plug in any AI provider's API key -- every Generate button in the app (prompts, improver, bulk import classification) routes through whatever's configured here. Swap providers or rotate a key any time, no redeploy needed."
+        description="Your rules and lessons, cadence, AI provider, and the danger zone."
       />
+
+      <PageSection title="Rules">
+        <RulesSection rules={[...rules]} />
+      </PageSection>
+
+      <PageSection title="Lessons">
+        <LessonsSection lessons={[...lessons]} />
+      </PageSection>
+
+      <PageSection title="Cadence and earned durations">
+        <CadenceSection settings={v2} />
+      </PageSection>
 
       <PageSection title="AI provider connection">
         <div className="grid lg:grid-cols-[260px_1fr] gap-6 rounded-[28px] bg-card p-6 md:p-8">
@@ -37,6 +60,10 @@ export default async function SettingsPage() {
             <RemoveKeyButton hasKey={settings.hasKey} />
           </div>
         </div>
+      </PageSection>
+
+      <PageSection title="Danger zone">
+        <DangerZone counts={counts} />
       </PageSection>
     </div>
   );

@@ -384,5 +384,5 @@ export const CONTENT_TYPES = ["educational", "storytelling", "authority", "other
 export const PILLARS = ["authority", "journey"] as const;
 export const FUNNEL_STAGES = ["tofu", "mofu", "bofu"] as const;
 export const CTA_TYPES = ["follow", "engagement", "manychat", "none"] as const;
-export const CALENDAR_STATUSES = ["idea", "researched", "scripted", "filmed", "edited", "posted"] as const;
+export const CALENDAR_STATUSES = ["idea", "researched", "scripted", "filmed", "edited", "posted", "reviewed"] as const;
 export const CONCEPT_BUCKETS = ["proven", "double_down", "experimental"] as const;
