@@ -15,51 +15,47 @@ export async function ensureV2Seed(userId: number) {
   await ensureSchema();
   const [marker] = await sql<{ key: string }[]>`SELECT key FROM brand_config WHERE key = ${V2_SEED_KEY} AND user_id = ${userId}`;
   if (marker) return;
-  // Claim the marker first; if a concurrent request already did, stop.
-  const claimed = await sql`
-    INSERT INTO brand_config (key, value, user_id) VALUES (${V2_SEED_KEY}, ${JSON.stringify({ seededAt: new Date().toISOString() })}, ${userId})
-    ON CONFLICT (COALESCE(user_id, 0), key) DO NOTHING
-    RETURNING key
-  `;
-  if (claimed.length === 0) return;
 
-  for (const [i, c] of PLAYBOOK_CARDS.entries()) {
-    await sql`INSERT INTO playbook_cards (key, title, body, grp, steps, position, user_id)
-      VALUES (${c.key}, ${c.title}, ${c.body}, ${c.grp}, ${sql.json(c.steps as never)}, ${i}, ${userId})`;
-  }
-  await sql`INSERT INTO rules ${sql(
-    SEED_RULES.map((r, i) => ({ text: r.text, category: r.category, position: i, user_id: userId })),
-    "text", "category", "position", "user_id"
-  )}`;
-  await sql`
-    INSERT INTO lessons (text, scope, applies_to, evidence, status, user_id)
-    VALUES (${SEED_LESSON.text}, ${SEED_LESSON.scope}, ${sql.json({ all: true } as never)}, ${SEED_LESSON.evidence}, ${SEED_LESSON.status}, ${userId})
-  `;
-  await sql`INSERT INTO ideas ${sql(
-    SEED_IDEAS.map((x) => ({ text: x.text, suggested_type: x.suggestedType, board: "favourite", status: "new", user_id: userId })),
-    "text", "suggested_type", "board", "status", "user_id"
-  )}`;
-
-  for (const r of REFERENCE_SCRIPTS) {
+  const cards = PLAYBOOK_CARDS.map((c, i) => ({ key: c.key, title: c.title, body: c.body, grp: c.grp, steps: c.steps, position: i }));
+  const rules = SEED_RULES.map((r, i) => ({ text: r.text, category: r.category, position: i }));
+  const ideas = SEED_IDEAS.map((x) => ({ text: x.text, suggested_type: x.suggestedType }));
+  const refs = REFERENCE_SCRIPTS.map((r) => {
     const say = r.say.join("\n");
     const words = countWords(say);
-    const beats = r.say.map((line, i) => ({ beat: i === 0 ? "hook" : `line ${i + 1}`, say: line, board: "", screen: "", drawing: false, locked: true, fact_ids: [] }));
-    const notes = [
-      r.board && `Board: ${r.board}`,
-      r.sources && `Sources:\n${r.sources}`,
-      r.doNotSay && `Do not say: ${r.doNotSay}`,
-      r.why && `Why it is a reference: ${r.why}`,
-    ].filter(Boolean).join("\n\n");
-    await sql`
-      INSERT INTO scripts (
-        title, pillar, content_type, format, body_black, body_red, body_green, cta_type, funnel_stage, status,
-        duration_s, type, template, hook_text, word_count, est_seconds, beats, is_reference, source, user_id
-      ) VALUES (
-        ${r.title}, 'authority', 'storytelling', 'Reel', ${say}, ${r.board ? `Board: ${r.board}` : ""}, ${notes}, 'none', ${r.funnel}, 'ready',
-        ${r.duration}, ${r.type}, ${r.template}, ${r.say[0]}, ${words}, ${Math.round(words / 2.5)}, ${sql.json(beats as never)}, TRUE, 'reference', ${userId}
-      )
-    `;
-  }
+    return {
+      title: r.title, body_black: say, body_red: r.board ? `Board: ${r.board}` : "",
+      body_green: [r.board && `Board: ${r.board}`, r.sources && `Sources:\n${r.sources}`, r.doNotSay && `Do not say: ${r.doNotSay}`, r.why && `Why it is a reference: ${r.why}`].filter(Boolean).join("\n\n"),
+      funnel_stage: r.funnel, duration_s: r.duration, type: r.type, template: r.template, hook_text: r.say[0], word_count: words,
+      est_seconds: Math.round(words / 2.5),
+      beats: r.say.map((line, i) => ({ beat: i === 0 ? "hook" : `line ${i + 1}`, say: line, board: "", screen: "", drawing: false, locked: true, fact_ids: [] })),
+    };
+  });
+
+  // One transaction, marker included: either everything is seeded or nothing
+  // is (and the next request tries again). Five statements, not ~25 round trips.
+  await sql.begin(async (txRaw) => {
+    const tx = txRaw as unknown as typeof sql;
+    const claimed = await tx`
+      INSERT INTO brand_config (key, value, user_id) VALUES (${V2_SEED_KEY}, ${JSON.stringify({ seededAt: new Date().toISOString() })}, ${userId})
+      ON CONFLICT (COALESCE(user_id, 0), key) DO NOTHING
+      RETURNING key`;
+    if (claimed.length === 0) return; // a concurrent request is seeding (or did)
+    await tx`INSERT INTO playbook_cards (key, title, body, grp, steps, position, user_id)
+      SELECT key, title, body, grp, steps, position, ${userId}
+      FROM jsonb_to_recordset(${tx.json(cards as never)}) AS x(key text, title text, body text, grp text, steps jsonb, position int)`;
+    await tx`INSERT INTO rules (text, category, position, user_id)
+      SELECT text, category, position, ${userId} FROM jsonb_to_recordset(${tx.json(rules as never)}) AS x(text text, category text, position int)`;
+    await tx`INSERT INTO lessons (text, scope, applies_to, evidence, status, user_id)
+      VALUES (${SEED_LESSON.text}, ${SEED_LESSON.scope}, ${tx.json({ all: true } as never)}, ${SEED_LESSON.evidence}, ${SEED_LESSON.status}, ${userId})`;
+    await tx`INSERT INTO ideas (text, suggested_type, board, status, user_id)
+      SELECT text, suggested_type, 'favourite', 'new', ${userId} FROM jsonb_to_recordset(${tx.json(ideas as never)}) AS x(text text, suggested_type text)`;
+    await tx`INSERT INTO scripts (title, pillar, content_type, format, body_black, body_red, body_green, cta_type, funnel_stage, status,
+        duration_s, type, template, hook_text, word_count, est_seconds, beats, is_reference, source, user_id)
+      SELECT title, 'authority', 'storytelling', 'Reel', body_black, body_red, body_green, 'none', funnel_stage, 'ready',
+        duration_s, type, template, hook_text, word_count, est_seconds, beats, TRUE, 'reference', ${userId}
+      FROM jsonb_to_recordset(${tx.json(refs as never)}) AS x(title text, body_black text, body_red text, body_green text, funnel_stage text,
+        duration_s int, type text, template text, hook_text text, word_count int, est_seconds int, beats jsonb)`;
+  });
 }
 
 // Counts for Settings > Danger zone and the Content starter banner. Lives

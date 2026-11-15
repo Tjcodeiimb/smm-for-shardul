@@ -78,6 +78,10 @@ export function verifyPassword(password: string, stored: string): boolean {
 // Returns the signed-in user's id, or null if not signed in. Safe to call
 // from Server Components and Server Actions (reads cookies via next/headers).
 export async function getCurrentUserId(): Promise<number | null> {
+  // Every page and action identifies the user before it queries, so this is
+  // the one place that guarantees the schema is migrated first. Imported
+  // lazily so proxy.ts (which only verifies tokens) doesn't bundle the DB.
+  await (await import("./db")).ensureSchema();
   const cookieStore = await cookies();
   return verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
 }
