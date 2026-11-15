@@ -30,6 +30,8 @@ export const sql =
         // Supabase's pooled connection (pgbouncer, transaction mode) doesn't
         // support server-side prepared statements.
         prepare: false,
+        // "already exists, skipping" notices from migrations are not errors.
+        onnotice: () => {},
       })
     : missingClient());
 
@@ -37,19 +39,55 @@ if (process.env.NODE_ENV !== "production" && connectionString) globalThis.__chil
 
 let schemaReady: Promise<void> | null = null;
 
-// Cheap to call repeatedly -- memoized after the first successful run, so
-// every query helper can safely call this before doing real work.
+// Bump this whenever initSchema() or migrateV2() changes. Instances whose
+// database already carries this version skip all DDL, so a cold start costs
+// one SELECT instead of dozens of ALTER TABLEs (which take table locks and,
+// run by many serverless instances at once, block each other).
+const SCHEMA_VERSION = "v2.4";
+const MIGRATION_LOCK = 4207114; // pg_advisory_xact_lock key: one migrator at a time
+
+type Db = typeof sql;
+
+// Memoized per process. Every page and action reaches it through
+// requireUserId() / getCurrentUserId() (lib/auth.ts), so no query can run
+// against a database that hasn't been migrated yet. A failure is not cached.
 export function ensureSchema(): Promise<void> {
-  if (!schemaReady) schemaReady = initSchema();
+  if (!schemaReady) {
+    schemaReady = runMigrations().catch((e) => {
+      schemaReady = null;
+      throw e;
+    });
+  }
   return schemaReady;
 }
 
-// One round trip for the whole schema instead of 7 sequential ones -- this
-// runs on every cold start, so it matters for perceived latency. `.simple()`
-// allows multiple statements in a single query since there are no dynamic
-// parameters here.
-async function initSchema() {
-  await sql`
+async function currentVersion(db: Db): Promise<string | null> {
+  try {
+    const [row] = await db<{ value: string }[]>`SELECT value FROM app_meta WHERE key = 'schema_version'`;
+    return row?.value ?? null;
+  } catch {
+    return null; // app_meta doesn't exist yet
+  }
+}
+
+async function runMigrations() {
+  if ((await currentVersion(sql)) === SCHEMA_VERSION) return;
+  await sql.begin(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    // Serialize: other instances wait here, then see the new version and stop.
+    await tx`SELECT pg_advisory_xact_lock(${MIGRATION_LOCK})`;
+    await tx`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`;
+    const [row] = await tx<{ value: string }[]>`SELECT value FROM app_meta WHERE key = 'schema_version'`;
+    if (row?.value === SCHEMA_VERSION) return;
+    await initSchema(tx);
+    await migrateV2(tx);
+    await tx`INSERT INTO app_meta (key, value) VALUES ('schema_version', ${SCHEMA_VERSION})
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+  });
+}
+
+async function initSchema(db: Db) {
+  await db`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
@@ -331,7 +369,6 @@ async function initSchema() {
     );
     CREATE INDEX IF NOT EXISTS playbook_cards_user_idx ON playbook_cards (user_id);
   `.simple();
-  await migrateV2();
 }
 
 // One-time, idempotent backfill for rows that existed before v2:
@@ -340,17 +377,17 @@ async function initSchema() {
 //   then sets the default so new inserts are "studio" unless they say otherwise.
 // - `word_count` / `est_seconds` / `duration_s` from the spoken (body_black)
 //   text at 2.5 words per second, bucketed into the six v2 durations.
-async function migrateV2() {
+async function migrateV2(db: Db) {
   const { LEGACY_SEED_SCRIPT_TITLES, LEGACY_SEED_CAROUSEL_TITLES } = await import("./legacy-seed-titles");
-  await sql`
+  await db`
     UPDATE scripts SET source = CASE WHEN title = ANY(${LEGACY_SEED_SCRIPT_TITLES}::text[]) THEN 'seed' ELSE 'studio' END
     WHERE source IS NULL
   `;
-  await sql`
+  await db`
     UPDATE carousels SET source = CASE WHEN title = ANY(${LEGACY_SEED_CAROUSEL_TITLES}::text[]) THEN 'seed' ELSE 'studio' END
     WHERE source IS NULL
   `;
-  await sql`
+  await db`
     ALTER TABLE scripts ALTER COLUMN source SET DEFAULT 'studio';
     ALTER TABLE carousels ALTER COLUMN source SET DEFAULT 'studio';
     UPDATE scripts SET word_count = COALESCE(array_length(regexp_split_to_array(btrim(COALESCE(body_black, '')), '\\s+'), 1), 0)
